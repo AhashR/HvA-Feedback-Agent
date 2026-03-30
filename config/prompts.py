@@ -183,6 +183,20 @@ Argumentative essay:
 
 Evaluate the persuasive effectiveness and logical strength of the argument."""
 
+    LEARNING_STORY_RUBRIC_PROMPT = """Evaluate this learning story focusing on reflective and narrative elements:
+
+1. Learning Outcomes (30%): Clarity of learning objectives, achievement demonstration
+2. Reflection & Insight (25%): Depth of reflection, critical thinking, personal growth
+3. Narrative Structure (25%): Storytelling effectiveness, character development, pacing
+4. Technical Skills (20%): Grammar, spelling, writing conventions
+
+Learning story:
+{essay_text}
+
+{prompt_context}
+
+Assess the reflective and narrative merits while providing constructive feedback."""
+
     @classmethod
     def get_prompt(cls, prompt_type: str, **kwargs) -> str:
         """Get a formatted prompt template."""
@@ -197,8 +211,8 @@ Evaluate the persuasive effectiveness and logical strength of the argument."""
             "academic_rubric": cls.ACADEMIC_RUBRIC_PROMPT,
             "creative_writing": cls.CREATIVE_WRITING_PROMPT,
             "argumentative_rubric": cls.ARGUMENTATIVE_RUBRIC_PROMPT,
+            "learning_story_rubric": cls.LEARNING_STORY_RUBRIC_PROMPT,
         }
-
         template = prompt_map.get(prompt_type, cls.COMPREHENSIVE_FEEDBACK_PROMPT)
         return template.format(**kwargs)
 

@@ -121,7 +121,7 @@ def main():
         # Rubric selection
         rubric_type = st.selectbox(
             "Grading Rubric",
-            ["Standard", "Academic", "Creative Writing", "Argumentative", "Custom"],
+            ["Standard", "Academic", "Creative Writing", "Argumentative", "Learning Story", "Custom"],
             help="Select the grading rubric to use",
         )
 
