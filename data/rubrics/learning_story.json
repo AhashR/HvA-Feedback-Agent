@@ -1,23 +1,23 @@
 {
     "name": "Learning Story Rubric - HvA HBO ICT",
-    "description": "Evaluation rubric for Learning Stories based on HvA HBO ICT methodology. Assesses how well students formulate context, learning goals, learning approach, and sources for achieving user stories.",
+    "description": "Evaluation rubric for Learning Stories based on HvA HBO ICT methodology. Assesses how well students formulate context, learning goals, learning approach, and sources for achieving learning stories.",
     "version": "1.0",
     "created_by": "HvA HBO ICT",
-    "workspace": "HvA HBO ICT - Automated Essay Grader",
+    "workspace": "HvA HBO ICT - Automated learning story Grader",
     "criteria": {
         "context": {
             "name": "Context & Understanding",
             "weight": 0.25,
             "max_score": 25,
-            "description": "Clarity of context derived from user story and depth of understanding what needs to be learned",
+            "description": "Clarity of context derived from learning story and depth of understanding what needs to be learned",
             "levels": {
                 "excellent": {
                     "score_range": [23, 25],
-                    "description": "Context is clearly identified from user story. Shows deep understanding of what skills/knowledge are needed and why they are essential for the user story."
+                    "description": "Context is clearly identified from learning story. Shows deep understanding of what skills/knowledge are needed and why they are essential for the learning story."
                 },
                 "proficient": {
                     "score_range": [20, 22],
-                    "description": "Context is well identified from user story. Clear understanding of required skills, with good explanation of relevance."
+                    "description": "Context is well identified from learning story. Clear understanding of required skills, with good explanation of relevance."
                 },
                 "developing": {
                     "score_range": [15, 19],
@@ -25,7 +25,7 @@
                 },
                 "beginning": {
                     "score_range": [10, 14],
-                    "description": "Context is vaguely identified. Limited understanding of skills needed or weak connection to user story."
+                    "description": "Context is vaguely identified. Limited understanding of skills needed or weak connection to learning story."
                 },
                 "inadequate": {
                     "score_range": [0, 9],
@@ -41,11 +41,11 @@
             "levels": {
                 "excellent": {
                     "score_range": [23, 25],
-                    "description": "Learning goals are clearly formulated using 'As a student, I want to learn...' format. Each goal explicitly states why the skill is needed and connects to user story requirements."
+                    "description": "Learning goals are clearly formulated using 'As a student, I want to learn...' format. Each goal explicitly states why the skill is needed and connects to learning story requirements."
                 },
                 "proficient": {
                     "score_range": [20, 22],
-                    "description": "Learning goals are well formulated with clear purpose. Most goals explain their relevance to the user story."
+                    "description": "Learning goals are well formulated with clear purpose. Most goals explain their relevance to the learning story."
                 },
                 "developing": {
                     "score_range": [15, 19],
@@ -57,7 +57,7 @@
                 },
                 "inadequate": {
                     "score_range": [0, 9],
-                    "description": "Learning goals are unclear, missing, or not properly connected to the user story."
+                    "description": "Learning goals are unclear, missing, or not properly connected to the learning story."
                 }
             }
         },
@@ -140,10 +140,10 @@
             "max": 59
         }
     },
-    "instructions": "Use this rubric to evaluate Learning Stories created according to HvA HBO ICT methodology. Each Learning Story should: (1) Identify context from the user story, (2) Formulate clear learning goals with justification, (3) Describe concrete learning approach with suitable resources, and (4) Document sources and their contributions. Weight each criterion equally when calculating the overall score. Consider the knowledgebase and diverse learning resources (videocourses, literature, coaching, examples, training) when evaluating the learning approach.",
+    "instructions": "Use this rubric to evaluate Learning Stories created according to HvA HBO ICT methodology. Each Learning Story should: (1) Identify context from the learning story, (2) Formulate clear learning goals with justification, (3) Describe concrete learning approach with suitable resources, and (4) Document sources and their contributions. Weight each criterion equally when calculating the overall score. Consider the knowledgebase and diverse learning resources (videocourses, literature, coaching, examples, training) when evaluating the learning approach.",
     "attribution": "Based on HvA HBO ICT Knowledge Base - Learning Story Framework",
     "learning_story_components": {
-        "context": "What do I need to know to accomplish this user story? What skills/knowledge are missing?",
+        "context": "What do I need to know to accomplish this learning story? What skills/knowledge are missing?",
         "learning_goals": "As a student, I want to learn... [formulate clear, justified learning objectives]",
         "approach": "How will I learn that? [concrete actions, resources, methods]",
         "resources": [
@@ -155,6 +155,26 @@
             "Practical exercises and workshops",
             "Training courses",
             "HvA Knowledgebase"
+        ]
+    },
+    "hva_guidelines": {
+        "sources": [
+            "HvA HBO-ICT kennisbank: Learning Story template en rubrics voor professional skills",
+            "HvA Digitale Didactiek/Knowledge Base: voorbeelden van Learning Stories"
+        ],
+        "expectations": [
+            "Start met context: situatie/rol/opdracht, waarom dit relevant is, betrokken stakeholders en het beoogde resultaat of deliverable.",
+            "Formuleer 2-3 leerdoelen in het format 'Als [rol] wil ik leren ... zodat ...' of 'Ik wil leren ... omdat ...' en voeg succes- of acceptatiecriteria toe wanneer het doel gehaald is.",
+            "Plan concrete leeracties/experimenten met tijdpad (onderzoeken, ontwerpen, bouwen, testen, feedback vragen, oefenen) en koppel elke actie aan een bron of begeleider.",
+            "Noem minimaal twee bronnen (HvA-kennisbank, lectoren/docenten, literatuur, video, peers) en motiveer de keuze per bron.",
+            "Beschrijf bewijslast: wat lever je op (artefact/demo/reflectie), hoe toets je voortgang (review, testresultaat, peer/coach feedback), en hoe je daarop reflecteert."
+        ],
+        "structure_hints": [
+            "Context & ambitie",
+            "Leerdoelen + succescriteria",
+            "Aanpak/experimenten + planning",
+            "Bronnen & begeleiding",
+            "Bewijs/reflectie en vervolgstap"
         ]
     }
 }

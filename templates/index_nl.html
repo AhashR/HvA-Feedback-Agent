@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="nl">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,12 +10,12 @@
     <div class="page">
         <header class="header">
             <h1>HvA Feedbackagent</h1>
-            <p>AI-powered system for feedback and grading of learning stories</p>
+            <p>AI-gestuurd systeem voor feedback en beoordeling van learning stories</p>
         </header>
 
         <div class="language-row">
-            <span class="language-label">Language</span>
-            <div class="language-toggle" role="group" aria-label="Language">
+            <span class="language-label">Taal</span>
+            <div class="language-toggle" role="group" aria-label="Taal">
                 <a class="{% if active_language == 'en' %}active{% endif %}" href="{{ url_for('index', lang='en') }}">EN</a>
                 <a class="{% if active_language == 'nl' %}active{% endif %}" href="{{ url_for('index', lang='nl') }}">NL</a>
             </div>
@@ -34,9 +34,9 @@
         <form method="post" action="{{ url_for('index', lang=active_language) }}" enctype="multipart/form-data" class="layout">
             <input type="hidden" name="feedback_agent_language" value="{{ active_language }}">
             <aside class="panel config-panel">
-                <h2>Configuration</h2>
+                <h2>Configuratie</h2>
 
-                <label for="model_provider">AI Model Provider</label>
+                <label for="model_provider">AI-modelprovider</label>
                 <select id="model_provider" name="model_provider">
                     {% for provider_key, provider_label in model_provider_labels.items() %}
                         <option value="{{ provider_key }}" {% if provider_key == form_state.model_provider %}selected{% endif %}>
@@ -54,57 +54,62 @@
                     {% endfor %}
                 </select>
 
-                <!-- Temperature and max token controls removed; handled automatically by backend sampling. -->
+                <!-- Temperatuur- en token-schuiven verwijderd; automatisch geregeld door de backend. -->
             </aside>
 
             <main class="panel content-panel">
-                <h2>Upload Learning Story</h2>
+                <h2>Learning story uploaden</h2>
 
-                <label for="essay_file">Choose a learning story file (txt, pdf, docx)</label>
+                <label for="essay_file">Kies een learning story bestand (txt, pdf, docx)</label>
                 <input id="essay_file" name="essay_file" type="file" accept=".txt,.pdf,.docx">
 
-                <label for="essay_text">Or paste your learning story here</label>
-                <textarea id="essay_text" name="essay_text" rows="12" placeholder="Paste your learning story content here...">{{ form_state.essay_text }}</textarea>
+                <label for="essay_text">Of plak je learning story hier</label>
+                <textarea id="essay_text" name="essay_text" rows="12" placeholder="Plak de inhoud van je learning story hier...">{{ form_state.essay_text }}</textarea>
 
-                <label for="essay_prompt">Learning Story Prompt/Topic (Optional)</label>
-                <textarea id="essay_prompt" name="essay_prompt" rows="4" placeholder="Enter the learning story prompt or topic if available...">{{ form_state.essay_prompt }}</textarea>
+                <label for="essay_prompt">Learning story opdracht/onderwerp (optioneel)</label>
+                <textarea id="essay_prompt" name="essay_prompt" rows="4" placeholder="Vul de learning story opdracht of het onderwerp in als dat beschikbaar is...">{{ form_state.essay_prompt }}</textarea>
 
-                <button class="primary" type="submit">Analyze Learning Story</button>
+                <button class="primary" type="submit">Analyseer learning story</button>
 
                 {% if results %}
                     <section class="results">
-                        <h2>Analysis Results</h2>
+                        <h2>Analyseresultaten</h2>
+                        {% set criterion_labels = {
+                            'Context & Understanding': 'Context & Begrip',
+                            'Learning Goals & Formulation': 'Leerdoelen & Formulering',
+                            'Learning Approach & Concrete Actions': 'Leerroute & Concrete Acties',
+                            'Substantiation & Evidence Quality': 'Onderbouwing & Bewijs'
+                        } %}
 
                         <div class="stats-grid">
                             <article class="card">
-                                <h3>Word Count</h3>
+                                <h3>Aantal woorden</h3>
                                 <p>{{ results.quick_stats.word_count }}</p>
                             </article>
+                            <!-- Leestijd verwijderd op verzoek -->
                         </div>
 
                         <div class="stats-grid">
                             <article class="card score">
-                                <h3>Overall Score</h3>
+                                <h3>Eindscore</h3>
                                 <p>{{ (results.overall_score / 10)|round(1) }}/10</p>
                             </article>
-                            {% set primary = results.breakdown[0] if results.breakdown|length > 0 else None %}
-                            {% set secondary = results.breakdown[1] if results.breakdown|length > 1 else None %}
                         </div>
 
-                        <h3>Detailed Breakdown</h3>
+                        <h3>Uitgebreide beoordeling</h3>
                         <table>
                             <thead>
                                 <tr>
                                     <th>Criteria</th>
                                     <th>Score</th>
-                                    <th>Max Score</th>
-                                    <th>Weight</th>
+                                    <th>Max. score</th>
+                                    <th>Weging</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in results.breakdown %}
                                     <tr>
-                                        <td>{{ item.name }}</td>
+                                        <td>{{ criterion_labels.get(item.name, item.name) }}</td>
                                         <td>{{ (item.score / 2.5)|round(1) }}</td>
                                         <td>10</td>
                                         <td>{{ item.weight }}</td>
@@ -113,16 +118,16 @@
                             </tbody>
                         </table>
 
-                        <h3>Detailed Feedback</h3>
-                        <h4>Strengths</h4>
-                        <div class="feedback-box">{{ results.feedback.strengths|default('No specific strengths identified.')|render_feedback }}</div>
-                        <h4>Areas for Improvement</h4>
-                        <div class="feedback-box">{{ results.feedback.improvements|default('No specific improvements suggested.')|render_feedback }}</div>
-                        <h4>Suggestions</h4>
-                        <div class="feedback-box">{{ results.feedback.suggestions|default('No specific suggestions available.')|render_feedback }}</div>
+                        <h3>Uitgebreide feedback</h3>
+                        <h4>Sterke punten</h4>
+                        <div class="feedback-box">{{ results.feedback.strengths|default('Geen specifieke sterke punten gevonden.')|render_feedback }}</div>
+                        <h4>Verbeterpunten</h4>
+                        <div class="feedback-box">{{ results.feedback.improvements|default('Geen specifieke verbeterpunten voorgesteld.')|render_feedback }}</div>
+                        <h4>Suggesties</h4>
+                        <div class="feedback-box">{{ results.feedback.suggestions|default('Geen specifieke suggesties beschikbaar.')|render_feedback }}</div>
                         <div class="export-actions">
-                            <a class="secondary" href="{{ url_for('export_pdf') }}">Generate PDF Report</a>
-                            <a class="secondary" href="{{ url_for('export_csv') }}">Export to CSV</a>
+                            <a class="secondary" href="{{ url_for('export_pdf') }}">Genereer PDF-rapport</a>
+                            <a class="secondary" href="{{ url_for('export_csv') }}">Exporteer naar CSV</a>
                         </div>
                     </section>
                 {% endif %}

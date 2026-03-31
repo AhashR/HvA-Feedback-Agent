@@ -1,22 +1,20 @@
-# Automated Essay Grader
+# HvA Learning Story Feedback Agent
 
 ## Overview
 
-The Automated Essay Grader is a Python-based application designed to automate the process of analyzing and grading essays using advanced AI technologies. It leverages cutting-edge technologies such as OpenAI's GPT models, LangChain, and Azure's AI services to process and evaluate essays efficiently.
+The HvA Learning Story Feedback Agent is a Python-based application that provides AI-generated feedback on student learning stories. It leverages Google Gemini via LangChain to process and evaluate learning stories efficiently.
 
 ## Features
 
-- **AI-Powered Essay Analysis** - Comprehensive evaluation of essay content, structure, and quality
-- **Multi-Criteria Grading** - Assessment across multiple dimensions including grammar, coherence, argument strength, and creativity
+- **AI-Powered Learning Story Analysis** - Comprehensive evaluation of learning story content, structure, and quality
+- **Multi-Criteria Grading** - Assessment across dimensions including grammar, coherence, reflection depth, and creativity
 - **Real-time Feedback** - Instant detailed feedback with suggestions for improvement
-- **Rubric-Based Scoring** - Customizable grading rubrics for different essay types
-- **Plagiarism Detection** - Basic similarity checking against common sources
+- **Rubric-Based Scoring** - Customizable grading rubrics for different learning story types
 - **Export Capabilities** - Generate detailed reports in PDF and CSV formats
 
 ## Future Features
 
 - Integration with Learning Management Systems (LMS)
-- Advanced plagiarism detection with external databases
 - Multi-language support for essay grading
 - Batch processing for multiple essays
 - Teacher dashboard for class-wide analytics
@@ -26,8 +24,8 @@ The Automated Essay Grader is a Python-based application designed to automate th
 
 **Clone the Repository**:
 ```bash
-git clone https://github.com/Hasif50/Automated-Essay-Grader.git
-cd Automated-Essay-Grader
+git clone https://github.com/<your-org>/HvA-Feedback-Agent.git
+cd HvA-Feedback-Agent
 ```
 
 **Install Dependencies**:
@@ -43,9 +41,7 @@ cp .env.sample .env
 
 Edit the `.env` file with your API credentials:
 ```
-OPENAI_API_KEY=your_openai_api_key_here
-AZURE_API_KEY=your_azure_api_key_here
-COHERE_API_KEY=your_cohere_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 **Run the Application**:
@@ -60,7 +56,7 @@ We welcome contributions from the community! Please read our [CONTRIBUTING.md](C
 ## Project Structure
 
 ```
-automated-essay-grader/
+HvA-Feedback-Agent/
 │
 ├── .env.sample
 ├── .gitignore
@@ -139,29 +135,29 @@ automated-essay-grader/
 Main Flask application that provides the user interface for uploading essays and displaying results.
 
 ### **`src/essay_analyzer.py`**:
-Core analysis engine that processes essays and extracts key features for grading.
+Core analysis engine that processes learning stories and extracts key features for grading.
 
 ### **`src/grading_engine.py`**:
-Implements the grading logic using AI models to evaluate essays across multiple criteria.
+Implements the grading logic using AI models to evaluate learning stories across multiple criteria.
 
 ### **`src/feedback_generator.py`**:
-Generates detailed, constructive feedback to help students improve their writing.
+Generates detailed, constructive feedback to help students improve their learning stories.
 
 ### **`config/prompts.py`**:
-Contains all prompt templates used for different aspects of essay evaluation.
+Contains all prompt templates used for different aspects of learning story evaluation.
 
 ## Technology Stack
 
 - **Language**: Python 3.10+
 - **Framework**: Flask for web interface
-- **AI Models**: OpenAI GPT-4, Azure AI services
+- **AI Models**: Google Gemini
 - **Libraries**: LangChain, pandas, numpy, nltk
-- **Cloud**: Azure for deployment and scaling
+- **Cloud**: Flexible (container-ready)
 
 ## About
 
-Real-world Problem Solved: Assists educators in providing consistent, unbiased grading with actionable feedback for students.
-The Automated Essay Grader project is designed to assist educators and students by providing consistent, detailed, and constructive feedback on written work. This tool aims to enhance the learning experience through AI-powered analysis.
+Real-world Problem Solved: Assists HvA students with actionable AI feedback on their learning stories.
+The HvA Learning Story Feedback Agent is designed to assist educators and students by providing consistent, detailed, and constructive feedback on learning stories. This tool aims to enhance the learning experience through AI-powered analysis.
 
 ## License
 

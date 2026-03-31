@@ -64,6 +64,42 @@ label {
     font-weight: 600;
 }
 
+.language-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.6rem 0 0.35rem;
+}
+
+.language-label {
+    font-weight: 700;
+}
+
+.language-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.2rem;
+}
+
+.language-toggle a {
+    text-decoration: none;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-weight: 700;
+    color: var(--muted);
+    user-select: none;
+}
+
+.language-toggle a.active {
+    background: var(--accent);
+    color: #fff;
+}
+
 input,
 select,
 textarea,

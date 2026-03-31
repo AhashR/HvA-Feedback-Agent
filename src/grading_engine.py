@@ -1,9 +1,7 @@
 """
 Grading Engine Module
-From Hasif's Workspace
 
 AI-powered essay grading system with customizable rubrics.
-Author: Hasif50
 """
 
 import json
@@ -38,7 +36,6 @@ class GradeResult:
 class GradingEngine:
     """
     Main grading engine that evaluates essays based on customizable rubrics.
-    From Hasif's Workspace - Built for comprehensive essay evaluation.
     """
 
     def __init__(self, rubric_type: str = "standard", analyzer=None, language: str = "en"):
@@ -53,7 +50,7 @@ class GradingEngine:
         self.rubric_type = self._normalize_rubric_type(rubric_type)
         self.analyzer = analyzer
         self.language = self._normalize_language(language)
-        self.rubric = self._load_rubric(self.rubric_type)
+        self.rubric, self.rubric_source = self._load_rubric(self.rubric_type)
 
     def _normalize_language(self, language: str) -> str:
         """Normalize language inputs to supported codes."""
@@ -70,8 +67,6 @@ class GradingEngine:
         aliases = {
             "learningstory": "learning_story",
             "learning_story_rubric": "learning_story",
-            "creative": "creative_writing",
-            "creativewriting": "creative_writing",
         }
 
         return aliases.get(normalized, normalized)
@@ -110,11 +105,11 @@ class GradingEngine:
 
         return None
 
-    def _load_rubric(self, rubric_type: str) -> Dict[str, GradingCriteria]:
-        """Load grading rubric based on type."""
+    def _load_rubric(self, rubric_type: str) -> tuple[Dict[str, GradingCriteria], str]:
+        """Load grading rubric based on type and record source."""
         file_rubric = self._load_rubric_from_file(rubric_type)
         if file_rubric:
-            return file_rubric
+            return file_rubric, "file"
 
         rubrics = {
             "standard": {
@@ -249,7 +244,7 @@ class GradingEngine:
             },
         }
 
-        return rubrics.get(rubric_type, rubrics["standard"])
+        return rubrics.get(rubric_type, rubrics["standard"]), "builtin"
 
     def grade_essay(
         self,
@@ -313,9 +308,10 @@ class GradingEngine:
             ),
             "detailed_feedback": detailed_feedback,
             "rubric_used": self.rubric_type,
+            "rubric_source": self.rubric_source,
             "language": active_language,
             "grading_breakdown": self._get_grading_breakdown(criteria_scores),
-            "workspace_attribution": "From Hasif's Workspace",
+            "workspace_attribution": "HvA Feedback Agent",
         }
 
     def _grade_criterion(
@@ -330,17 +326,31 @@ class GradingEngine:
         if criterion.name == "Content & Ideas" or criterion.name == "Thesis & Argument":
             return self._grade_content(essay_text, analysis_results, criterion, prompt)
 
-        elif (
-            criterion.name == "Context & Understanding"
-            or criterion.name == "Learning Goals & Formulation"
-        ):
-            return self._grade_content(essay_text, analysis_results, criterion, prompt)
+        elif criterion.name == "Context & Understanding":
+            return self._grade_learning_story_context(
+                essay_text, analysis_results, criterion, prompt
+            )
+
+        elif criterion.name == "Learning Goals & Formulation":
+            return self._grade_learning_story_goals(
+                essay_text, analysis_results, criterion, prompt
+            )
 
         elif (
             criterion.name == "Organization & Structure"
             or criterion.name == "Narrative Structure"
         ):
             return self._grade_organization(essay_text, analysis_results, criterion)
+
+        elif criterion.name == "Learning Approach & Concrete Actions":
+            return self._grade_learning_story_approach(
+                essay_text, analysis_results, criterion
+            )
+
+        elif criterion.name == "Substantiation & Evidence Quality":
+            return self._grade_learning_story_substantiation(
+                essay_text, analysis_results, criterion
+            )
 
         elif (
             criterion.name == "Grammar & Mechanics"
@@ -407,6 +417,133 @@ class GradingEngine:
 
         # AI content analysis boost
         if "content_analysis" in analysis_results:
+            base_score += criterion.max_score * 0.1
+
+        return min(base_score, criterion.max_score)
+
+    def _grade_learning_story_context(
+        self,
+        essay_text: str,
+        analysis_results: Dict,
+        criterion: GradingCriteria,
+        prompt: Optional[str],
+    ) -> float:
+        """Grade context based on HvA learning story expectations."""
+        signals = analysis_results.get("learning_story_signals", {}) or {}
+        if not signals:
+            return self._grade_content(essay_text, analysis_results, criterion, prompt)
+
+        base_score = criterion.max_score * 0.25
+
+        context_mentions = signals.get("context_mentions", 0)
+        deliverables = signals.get("deliverable_mentions", 0)
+        stakeholders = signals.get("stakeholder_mentions", 0)
+        planning = signals.get("planning_mentions", 0)
+
+        if context_mentions >= 3:
+            base_score += criterion.max_score * 0.35
+        elif context_mentions >= 1:
+            base_score += criterion.max_score * 0.25
+
+        if deliverables >= 1:
+            base_score += criterion.max_score * 0.15
+
+        if stakeholders >= 1:
+            base_score += criterion.max_score * 0.1
+
+        if planning >= 1:
+            base_score += criterion.max_score * 0.05
+
+        return min(base_score, criterion.max_score)
+
+    def _grade_learning_story_goals(
+        self,
+        essay_text: str,
+        analysis_results: Dict,
+        criterion: GradingCriteria,
+        prompt: Optional[str],
+    ) -> float:
+        """Grade learning goals with HvA goal patterns and criteria."""
+        signals = analysis_results.get("learning_story_signals", {}) or {}
+        if not signals:
+            return self._grade_content(essay_text, analysis_results, criterion, prompt)
+
+        base_score = criterion.max_score * 0.25
+
+        goal_statements = signals.get("goal_statements", 0)
+        success_criteria = signals.get("success_criteria_mentions", 0)
+
+        if goal_statements >= 3:
+            base_score += criterion.max_score * 0.4
+        elif goal_statements >= 1:
+            base_score += criterion.max_score * 0.3
+
+        if success_criteria >= 2:
+            base_score += criterion.max_score * 0.2
+        elif success_criteria >= 1:
+            base_score += criterion.max_score * 0.1
+
+        return min(base_score, criterion.max_score)
+
+    def _grade_learning_story_approach(
+        self, essay_text: str, analysis_results: Dict, criterion: GradingCriteria
+    ) -> float:
+        """Grade learning approach and actions using HvA learning story signals."""
+        signals = analysis_results.get("learning_story_signals", {}) or {}
+        if not signals:
+            return self._grade_organization(essay_text, analysis_results, criterion)
+
+        base_score = criterion.max_score * 0.25
+
+        actions_count = signals.get("actions_count", 0)
+        resources = signals.get("resource_mentions", 0)
+        planning = signals.get("planning_mentions", 0)
+        reflection = signals.get("reflection_mentions", 0)
+
+        if actions_count >= 4:
+            base_score += criterion.max_score * 0.35
+        elif actions_count >= 2:
+            base_score += criterion.max_score * 0.25
+
+        if resources >= 3:
+            base_score += criterion.max_score * 0.2
+        elif resources >= 1:
+            base_score += criterion.max_score * 0.1
+
+        if planning >= 1:
+            base_score += criterion.max_score * 0.1
+
+        if reflection >= 1:
+            base_score += criterion.max_score * 0.05
+
+        return min(base_score, criterion.max_score)
+
+    def _grade_learning_story_substantiation(
+        self, essay_text: str, analysis_results: Dict, criterion: GradingCriteria
+    ) -> float:
+        """Grade evidence and substantiation with HvA learning story heuristics."""
+        signals = analysis_results.get("learning_story_signals", {}) or {}
+        if not signals:
+            return self._grade_evidence(essay_text, analysis_results, criterion)
+
+        base_score = criterion.max_score * 0.25
+
+        evidence = signals.get("evidence_mentions", 0)
+        links = signals.get("link_mentions", 0)
+        resources = signals.get("resource_mentions", 0)
+        reflection = signals.get("reflection_mentions", 0)
+
+        if evidence >= 3:
+            base_score += criterion.max_score * 0.35
+        elif evidence >= 1:
+            base_score += criterion.max_score * 0.25
+
+        if links >= 1 or resources >= 2:
+            base_score += criterion.max_score * 0.2
+        elif resources >= 1:
+            base_score += criterion.max_score * 0.1
+
+        if reflection >= 1:
             base_score += criterion.max_score * 0.1
 
         return min(base_score, criterion.max_score)
@@ -837,7 +974,7 @@ Provide constructive, specific feedback that:
 
 Return all feedback in {language_name}.
 
-Keep feedback professional and educational. From Hasif's Workspace."""
+Keep feedback professional and educational."""
 
             user_message = f"Essay to provide feedback on:\n\n{essay_text}"
 

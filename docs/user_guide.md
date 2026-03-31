@@ -302,10 +302,10 @@ If you encounter persistent issues:
 
 ## About This System
 
-The Automated Essay Grader is built from Hasif's Workspace using cutting-edge AI technology to provide comprehensive essay analysis and feedback. Our goal is to enhance the learning experience through innovative educational technology.
+The Automated Essay Grader uses cutting-edge AI technology to provide comprehensive essay analysis and feedback. Our goal is to enhance the learning experience through innovative educational technology.
 
-**Developer**: Hasif50  
-**Workspace**: Hasif's Workspace  
+**Maintainer**: HvA Feedback Agent Team  
+**Workspace**: HvA Feedback Agent  
 **Version**: 1.0.0
 
 For additional support or questions, please refer to the documentation or contact the development team.

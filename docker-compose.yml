@@ -1,6 +1,4 @@
 # Docker Compose for Automated Essay Grader
-# From Hasif's Workspace
-# Author: Hasif50
 
 version: '3.8'
 
@@ -11,13 +9,10 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AZURE_API_KEY=${AZURE_API_KEY}
-      - AZURE_ENDPOINT=${AZURE_ENDPOINT}
-      - COHERE_API_KEY=${COHERE_API_KEY}
-      - APP_TITLE=Automated Essay Grader
-      - WORKSPACE_ATTRIBUTION=Hasif's Workspace
-      - DEVELOPER_NAME=Hasif50
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - APP_TITLE=HvA Learning Story Feedback Agent
+      - WORKSPACE_ATTRIBUTION=HvA Feedback Agent
+      - DEVELOPER_NAME=HvA Feedback Agent Team
     volumes:
       - ./data/outputs:/app/data/outputs
       - ./logs:/app/logs
@@ -62,7 +57,7 @@ volumes:
 
 # Metadata
 x-metadata:
-  workspace: "Hasif's Workspace"
-  author: "Hasif50"
-  description: "AI-Powered Essay Analysis and Grading System"
+  workspace: "HvA Feedback Agent"
+  author: "HvA Feedback Agent Team"
+  description: "AI-powered feedback for HvA learning stories"
   version: "1.0.0"

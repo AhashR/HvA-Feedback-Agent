@@ -1,11 +1,11 @@
 """
 Feedback Generator Module
-From Hasif's Workspace
 
 AI-powered feedback generation for comprehensive essay evaluation.
-Author: Hasif50
 """
 
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -13,7 +13,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 class FeedbackGenerator:
     """
     Generates detailed, constructive feedback for essays using AI.
-    From Hasif's Workspace - Built for educational excellence.
     """
 
     def __init__(self, analyzer=None, language: str = "en"):
@@ -26,6 +25,7 @@ class FeedbackGenerator:
         """
         self.analyzer = analyzer
         self.language = self._normalize_language(language)
+        self._learning_story_rubric_details: Optional[Dict[str, Any]] = None
 
     def _normalize_language(self, language: str) -> str:
         """Normalize language inputs to supported codes."""
@@ -113,7 +113,13 @@ class FeedbackGenerator:
             Dictionary containing different types of feedback
         """
         active_language = self._normalize_language(language or self.language)
-        feedback = {}
+        feedback: Dict[str, str] = {}
+
+        rubric_used = grade_results.get("rubric_used", "")
+        learning_signals = analysis_results.get("learning_story_signals", {})
+        rubric_details = (
+            self._load_learning_story_rubric_details() if rubric_used == "learning_story" else None
+        )
 
         # Generate AI-powered feedback
         if self.analyzer:
@@ -124,19 +130,34 @@ class FeedbackGenerator:
                     grade_results,
                     prompt,
                     language=active_language,
+                    rubric_details=rubric_details,
+                    signals=learning_signals,
+                    rubric_used=rubric_used,
                 )
             )
 
-        # Generate specific feedback sections
-        feedback["strengths"] = self._identify_strengths(
-            analysis_results, grade_results
-        )
-        feedback["improvements"] = self._identify_improvements(
-            analysis_results, grade_results
-        )
-        feedback["suggestions"] = self._generate_suggestions(
-            analysis_results, grade_results
-        )
+        # Generate specific feedback sections (content-focused for learning stories)
+        if rubric_used == "learning_story":
+            feedback["strengths"] = self._identify_learning_story_strengths(
+                analysis_results, grade_results, active_language
+            )
+            feedback["improvements"] = self._identify_learning_story_improvements(
+                analysis_results, grade_results, active_language
+            )
+            feedback["suggestions"] = self._generate_learning_story_suggestions(
+                analysis_results, grade_results, active_language
+            )
+        else:
+            feedback["strengths"] = self._identify_strengths(
+                analysis_results, grade_results
+            )
+            feedback["improvements"] = self._identify_improvements(
+                analysis_results, grade_results
+            )
+            feedback["suggestions"] = self._generate_suggestions(
+                analysis_results, grade_results
+            )
+
         feedback["grammar_feedback"] = self._generate_grammar_feedback(analysis_results)
         feedback["style_feedback"] = self._generate_style_feedback(analysis_results)
         feedback["structure_feedback"] = self._generate_structure_feedback(
@@ -148,7 +169,7 @@ class FeedbackGenerator:
             feedback = self._localize_feedback(feedback, active_language)
 
         # Add workspace attribution
-        feedback["workspace_attribution"] = "From Hasif's Workspace"
+        feedback["workspace_attribution"] = "HvA Feedback Agent"
         feedback["language"] = active_language
 
         return feedback
@@ -160,17 +181,46 @@ class FeedbackGenerator:
         grade_results: Dict[str, Any],
         prompt: Optional[str] = None,
         language: str = "en",
+        rubric_details: Optional[Dict[str, Any]] = None,
+        signals: Optional[Dict[str, Any]] = None,
+        rubric_used: str = "",
     ) -> Dict[str, str]:
         """Generate AI-powered comprehensive feedback."""
         try:
-            # Prepare context for AI
             overall_score = grade_results.get("overall_score", 0)
             letter_grade = grade_results.get("letter_grade", "N/A")
             word_count = analysis_results.get("basic_stats", {}).get("word_count", 0)
             language_name = "Dutch" if language == "nl" else "English"
 
-            # Create detailed prompt for feedback generation
-            system_message = f"""You are an expert writing instructor providing detailed, constructive feedback on student essays. 
+            hva_context = ""
+            if rubric_used == "learning_story":
+                expectations = []
+                if rubric_details:
+                    expectations = (
+                        rubric_details.get("hva_guidelines", {}).get("expectations", [])
+                    )
+
+                expectation_snippet = "; ".join(expectations[:3]) if expectations else "Focus op context, leerdoelen, aanpak en bewijs volgens HvA Learning Story."
+
+                signal_summary = ""
+                if signals:
+                    signal_summary = (
+                        f"Detected signals → context: {signals.get('context_mentions', 0)}, "
+                        f"goals: {signals.get('goal_statements', 0)}, actions: {signals.get('actions_count', 0)}, "
+                        f"sources: {signals.get('resource_mentions', 0)}, evidence: {signals.get('evidence_mentions', 0)}."
+                    )
+
+                hva_context = (
+                    "Use the HvA Learning Story rubric. Prioritize content over generic writing advice. "
+                    "Focus on four pillars: (1) context/situatie/rol + deliverable/stakeholders, "
+                    "(2) 2-3 learning goals formulated as 'Als student wil ik leren ... zodat ...' with success criteria, "
+                    "(3) concrete learning approach with planned actions/experiments, resources and timeboxing, "
+                    "(4) substantiation: sources, evidence/artefacts, reflection/feedback. "
+                    f"HvA expectations: {expectation_snippet} "
+                    f"{signal_summary}"
+                )
+
+            system_message = f"""You are an expert writing instructor providing detailed, constructive feedback on student essays.
 
 The essay received an overall score of {overall_score}/100 (Grade: {letter_grade}) and contains {word_count} words.
 
@@ -181,18 +231,19 @@ Your feedback should be:
 4. Balanced between strengths and areas for growth
 5. Appropriate for the student's level
 
+{hva_context}
+
 Provide feedback in these categories:
 - Overall Assessment
 - Content Strengths
 - Areas for Improvement
 - Specific Recommendations
 
-Return all feedback in {language_name}.
+Return all feedback in {language_name} within ~250 words. Keep formatting readable (paragraphs or bullet points are fine).
 
-From Hasif's Workspace - Educational Excellence Through AI."""
+Powered by the HvA Feedback Agent system."""
 
             user_message = f"Essay to provide feedback on:\n\n{essay_text}"
-
             if prompt:
                 user_message = f"Essay prompt: {prompt}\n\n{user_message}"
 
@@ -201,13 +252,58 @@ From Hasif's Workspace - Educational Excellence Through AI."""
                 HumanMessage(content=user_message),
             ]
 
-            response = self.analyzer.llm(messages)
+            # Generate multiple candidates with varied temperatures and let the model pick the best.
+            candidate_temps = [0.35, 0.6, 0.85]
+            sample_max_tokens = min(max(self.analyzer.max_tokens, 300), 1500)
+            candidates: List[str] = []
 
-            # Parse the response into sections
-            feedback_text = response.content
+            for temp in candidate_temps:
+                try:
+                    response = self.analyzer.run_chat(
+                        messages, temperature=temp, max_tokens=sample_max_tokens
+                    )
+                    if getattr(response, "content", ""):
+                        candidates.append(str(response.content).strip())
+                except Exception:
+                    continue
+
+            # Fallback if no candidates generated
+            if not candidates:
+                return {
+                    "ai_comprehensive_feedback": "Error generating AI feedback: no candidate responses generated.",
+                    "ai_provider": "error",
+                }
+
+            if len(candidates) == 1:
+                chosen_feedback = candidates[0]
+            else:
+                # Ask the model to choose the best candidate and return only that text.
+                judge_instructions = (
+                    "You are selecting the best feedback. Choose the response that is clearest, most actionable, well-structured, and concise. "
+                    "Return ONLY the full text of the best candidate with no commentary, numbering, or added text."
+                )
+
+                numbered = []
+                for idx, cand in enumerate(candidates, start=1):
+                    numbered.append(f"Candidate {idx}:\n{cand}")
+
+                judge_messages = [
+                    SystemMessage(content=judge_instructions),
+                    HumanMessage(content="\n\n".join(numbered)),
+                ]
+
+                try:
+                    judge_response = self.analyzer.run_chat(
+                        judge_messages, temperature=0.0, max_tokens=sample_max_tokens
+                    )
+                    chosen_feedback = str(getattr(judge_response, "content", "")).strip()
+                    if not chosen_feedback:
+                        chosen_feedback = candidates[0]
+                except Exception:
+                    chosen_feedback = candidates[0]
 
             return {
-                "ai_comprehensive_feedback": feedback_text,
+                "ai_comprehensive_feedback": chosen_feedback,
                 "ai_provider": f"{self.analyzer.model_provider}_{self.analyzer.model_name}",
             }
 
@@ -236,7 +332,7 @@ From Hasif's Workspace - Educational Excellence Through AI."""
                 ),
                 HumanMessage(content=text),
             ]
-            response = self.analyzer.llm(messages)
+            response = self.analyzer.run_chat(messages, temperature=0.0)
             return response.content.strip()
         except Exception:
             return text
@@ -259,6 +355,234 @@ From Hasif's Workspace - Educational Excellence Through AI."""
                 feedback[key] = self._translate_text(source_text, language)
 
         return feedback
+
+    def _load_learning_story_rubric_details(self) -> Optional[Dict[str, Any]]:
+        """Load HvA learning story rubric metadata once for rubric-aware prompts."""
+        if self._learning_story_rubric_details is not None:
+            return self._learning_story_rubric_details
+
+        rubric_path = Path(__file__).resolve().parent.parent / "data" / "rubrics" / "learning_story.json"
+        try:
+            with rubric_path.open("r", encoding="utf-8") as handle:
+                self._learning_story_rubric_details = json.load(handle)
+        except Exception:
+            self._learning_story_rubric_details = None
+
+        return self._learning_story_rubric_details
+
+    def _ls_text(self, language: str, en_text: str, nl_text: str) -> str:
+        """Return text in the requested language."""
+        return nl_text if language == "nl" else en_text
+
+    def _identify_learning_story_strengths(
+        self, analysis_results: Dict[str, Any], grade_results: Dict[str, Any], language: str
+    ) -> str:
+        """Identify strengths with HvA learning story focus."""
+        signals = analysis_results.get("learning_story_signals", {}) or {}
+        criteria_scores = grade_results.get("criteria_scores", {}) or {}
+
+        strengths: List[str] = []
+
+        if signals.get("context_mentions", 0) > 0:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Context is described (situatie/rol) and connects to the learning story.",
+                    "Context is beschreven (situatie/rol) en gekoppeld aan de learning story."
+                )
+            )
+
+        if signals.get("deliverable_mentions", 0) > 0:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Deliverable or result is stated, making expected outcome tangible.",
+                    "Deliverable/resultaat is benoemd, waardoor de verwachting concreet is."
+                )
+            )
+
+        if signals.get("goal_statements", 0) >= 2:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Multiple learning goals are formulated; strong alignment with HvA format.",
+                    "Meerdere leerdoelen zijn geformuleerd; sluit goed aan bij het HvA-format."
+                )
+            )
+
+        if signals.get("success_criteria_mentions", 0) >= 1:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Success/acceptance criteria are present, clarifying when the goal is met.",
+                    "Succes-/acceptatiecriteria zijn aanwezig, waardoor duidelijk is wanneer het doel gehaald is."
+                )
+            )
+
+        if signals.get("actions_count", 0) >= 2:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Concrete learning actions or experiments are planned.",
+                    "Concrete leeracties of experimenten zijn gepland."
+                )
+            )
+
+        if signals.get("resource_mentions", 0) >= 2 or signals.get("link_mentions", 0) >= 1:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Multiple sources/resources are cited to support the plan.",
+                    "Meerdere bronnen/ondersteuning worden genoemd ter onderbouwing van de aanpak."
+                )
+            )
+
+        if signals.get("evidence_mentions", 0) >= 1:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Evidence or proof of learning is considered (artefacts, tests, reflection).",
+                    "Bewijs of bewijsvoering wordt benoemd (artefacten, testen, reflectie)."
+                )
+            )
+
+        if not strengths:
+            strengths.append(
+                self._ls_text(
+                    language,
+                    "Learning story shows effort; refine details per rubric for higher impact.",
+                    "Learning story laat inzet zien; verfijn per rubric voor meer impact."
+                )
+            )
+
+        return "\n\n".join(strengths)
+
+    def _identify_learning_story_improvements(
+        self, analysis_results: Dict[str, Any], grade_results: Dict[str, Any], language: str
+    ) -> str:
+        """Targeted improvements for HvA learning stories."""
+        signals = analysis_results.get("learning_story_signals", {}) or {}
+        criteria_scores = grade_results.get("criteria_scores", {}) or {}
+
+        improvements: List[str] = []
+
+        if signals.get("context_mentions", 0) == 0 or criteria_scores.get("context", 0) < 18:
+            improvements.append(
+                self._ls_text(
+                    language,
+                    "Context: describe the situation/role/assignment, the stakeholders involved, and the intended deliverable/result.",
+                    "Context: beschrijf situatie/rol/opdracht, betrokken stakeholders en het beoogde deliverable/resultaat."
+                )
+            )
+
+        if signals.get("goal_statements", 0) < 2 or criteria_scores.get("learning_goals", 0) < 18:
+            improvements.append(
+                self._ls_text(
+                    language,
+                    "Learning goals: write 2-3 goals in the HvA format ('Als student wil ik leren ... zodat ...' / 'As a student I want to learn ... so that ...') and add a success/acceptance criterion per goal.",
+                    "Leerdoelen: formuleer 2-3 doelen in het HvA-format ('Als student wil ik leren ... zodat ...') en koppel per doel een succes- of acceptatiecriterium."
+                )
+            )
+
+        if signals.get("actions_count", 0) < 2 or criteria_scores.get("learning_approach", 0) < 18:
+            improvements.append(
+                self._ls_text(
+                    language,
+                    "Approach: plan 3-4 concrete actions/experiments (research, build, test, feedback) with a timeline and link them to your goals.",
+                    "Aanpak: plan 3-4 concrete acties/experimenten (onderzoek, bouwen, testen, feedback) met tijdpad en koppel ze aan je doelen."
+                )
+            )
+
+        if signals.get("resource_mentions", 0) < 2:
+            improvements.append(
+                self._ls_text(
+                    language,
+                    "Resources: add at least two specific sources (HvA knowledge base, lecturers/coaches, articles, tutorials) and explain why you pick each.",
+                    "Bronnen: voeg minimaal twee specifieke bronnen toe (HvA-kennisbank, docenten/lectoraat, artikelen, tutorials) en motiveer je keuze."
+                )
+            )
+
+        if signals.get("evidence_mentions", 0) < 1:
+            improvements.append(
+                self._ls_text(
+                    language,
+                    "Evidence: describe what proof you will deliver (artefact/demo/reflection), how you will validate it (test result/review), and how you will process feedback.",
+                    "Bewijslast: omschrijf welk bewijs je oplevert (artefact/demo/reflectie), hoe je toetst (testresultaat/review) en hoe je feedback verwerkt."
+                )
+            )
+
+        if signals.get("reflection_mentions", 0) < 1:
+            improvements.append(
+                self._ls_text(
+                    language,
+                    "Reflection/feedback: schedule a moment to gather feedback and briefly reflect on progress and the next step.",
+                    "Reflectie/feedback: plan een moment om feedback te verzamelen en kort te reflecteren op voortgang en volgende stap."
+                )
+            )
+
+        if not improvements:
+            improvements.append(
+                self._ls_text(
+                    language,
+                    "Deepen the learning story with extra evidence and sharper acceptance criteria to reach the next quality level.",
+                    "Verdiep de learning story met extra bewijs en scherpere acceptatiecriteria om naar de volgende kwaliteitsstap te gaan."
+                )
+            )
+
+        return "\n\n".join(improvements)
+
+    def _generate_learning_story_suggestions(
+        self, analysis_results: Dict[str, Any], grade_results: Dict[str, Any], language: str
+    ) -> str:
+        """Actionable next steps for HvA learning stories."""
+        signals = analysis_results.get("learning_story_signals", {}) or {}
+
+        suggestions: List[str] = []
+
+        suggestions.append(
+            self._ls_text(
+                language,
+                "Rewrite goals: craft 2-3 goals in 'Als student wil ik leren ... zodat ...' / 'As a student I want to learn ... so that ...' and add a success criterion per goal.",
+                "Herformuleer doelen: schrijf 2-3 doelen in 'Als student wil ik leren ... zodat ...' en voeg een succescriterium toe per doel."
+            )
+        )
+
+        if signals.get("actions_count", 0) < 3:
+            suggestions.append(
+                self._ls_text(
+                    language,
+                    "Plan actions: list three concrete actions/experiments (research, build, test) with a week-by-week planning and expected outcome.",
+                    "Plan acties: noteer drie concrete acties/experimenten (onderzoek, bouwen, testen) met een weekplanning en verwachte uitkomst."
+                )
+            )
+
+        if signals.get("resource_mentions", 0) < 2:
+            suggestions.append(
+                self._ls_text(
+                    language,
+                    "Connect sources: select at least two concrete sources (HvA knowledge base, articles, lecturer/coach) and note how you will use each one.",
+                    "Koppel bronnen: selecteer minimaal twee specifieke bronnen (HvA-kennisbank, artikelen, docent/coach) en geef per bron wat je ermee doet."
+                )
+            )
+
+        if signals.get("evidence_mentions", 0) < 1:
+            suggestions.append(
+                self._ls_text(
+                    language,
+                    "Evidence plan: decide which artefact or result you will deliver (code/demo/reflection), how you will test/review it, and how you will process feedback.",
+                    "Bewijsplan: bepaal welk artefact of resultaat je oplevert (code/demo/reflectie), hoe je het toetst (review/test) en hoe je feedback verwerkt."
+                )
+            )
+
+        suggestions.append(
+            self._ls_text(
+                language,
+                "HvA structure check: follow Context -> Learning goals + success criteria -> Approach/experiments -> Sources -> Evidence/reflection.",
+                "Check op HvA-structuur: volg de volgorde Context -> Leerdoelen + succescriteria -> Aanpak/experimenten -> Bronnen -> Bewijs/reflectie."
+            )
+        )
+
+        return "\n\n".join(suggestions)
 
     def _identify_strengths(
         self, analysis_results: Dict[str, Any], grade_results: Dict[str, Any]

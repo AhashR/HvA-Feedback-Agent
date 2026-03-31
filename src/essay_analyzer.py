@@ -1,22 +1,22 @@
 """
-Essay Analyzer Module
-From Hasif's Workspace
+Learning Story Analyzer Module
 
-Core essay analysis functionality using AI models.
-Author: Hasif50
+Core learning story analysis functionality using AI models.
 """
 
 import os
 import re
 import nltk
 import textstat
+import logging
 from typing import Dict, List, Optional, Any
 from nltk.corpus import stopwords
-from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from textblob import TextBlob
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import spacy
+
+logger = logging.getLogger(__name__)
 
 # Download required NLTK data
 try:
@@ -35,23 +35,22 @@ except LookupError:
 
 class EssayAnalyzer:
     """
-    Main essay analysis class that handles AI-powered text analysis.
-    From Hasif's Workspace - Built for comprehensive essay evaluation.
+    Main learning story analysis class that handles AI-powered text analysis.
     """
 
     def __init__(
         self,
-        model_provider: str = "openai",
-        model_name: str = "gpt-4",
+        model_provider: str = "gemini",
+        model_name: str = "gemini-1.5-pro",
         temperature: float = 0.3,
         max_tokens: int = 2000,
         language: str = "en",
     ):
         """
-        Initialize the essay analyzer.
+        Initialize the learning story analyzer.
 
         Args:
-            model_provider: AI model provider ('openai' or 'azure_openai')
+            model_provider: AI model provider ('gemini' or 'mock')
             model_name: Specific model to use
             temperature: Model temperature for response generation
             max_tokens: Maximum tokens for model responses
@@ -134,37 +133,89 @@ class EssayAnalyzer:
     def _initialize_model(self):
         """Initialize the AI model based on provider."""
         try:
-            if self.model_provider == "openai":
-                self.llm = ChatOpenAI(
-                    model_name=self.model_name,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    openai_api_key=os.getenv("OPENAI_API_KEY"),
-                )
-            elif self.model_provider == "azure_openai":
-                self.llm = AzureChatOpenAI(
-                    deployment_name=self.model_name,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    azure_endpoint=os.getenv("AZURE_ENDPOINT"),
-                    api_key=os.getenv("AZURE_API_KEY"),
-                    api_version=os.getenv("AZURE_API_VERSION", "2023-05-15"),
-                )
-            elif self.model_provider == "mock":
-                # Lightweight mock for tests that should not call external LLMs.
-                class _MockLLM:
-                    def __call__(self, messages):
-                        class _MockResponse:
-                            content = "Mock analysis response"
-
-                        return _MockResponse()
-
-                self.llm = _MockLLM()
-            else:
-                raise ValueError(f"Unsupported model provider: {self.model_provider}")
+            self.llm = self._build_llm()
 
         except Exception as e:
             raise Exception(f"Failed to initialize AI model: {str(e)}")
+
+    def _build_llm(
+        self, temperature: Optional[float] = None, max_tokens: Optional[int] = None
+    ):
+        """Construct a provider-specific LLM with optional overrides."""
+
+        temp = self.temperature if temperature is None else temperature
+        tokens = self.max_tokens if max_tokens is None else max_tokens
+
+        if self.model_provider == "gemini":
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY not configured.")
+
+            try:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+            except ImportError as exc:
+                raise ImportError(
+                    "langchain-google-genai is required for Gemini. Install via 'pip install langchain-google-genai google-generativeai'."
+                ) from exc
+
+            return ChatGoogleGenerativeAI(
+                model=self.model_name,
+                temperature=temp,
+                max_output_tokens=tokens,
+                google_api_key=api_key,
+            )
+        elif self.model_provider == "mock":
+            # Lightweight mock for tests that should not call external LLMs.
+            class _MockLLM:
+                def __call__(self, messages):
+                    class _MockResponse:
+                        content = "Mock analysis response"
+
+                    return _MockResponse()
+
+            return _MockLLM()
+        else:
+            raise ValueError(f"Unsupported model provider: {self.model_provider}")
+
+    def run_chat(
+        self,
+        messages: list[Any],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ):
+        """Execute a chat call with optional sampling overrides."""
+
+        call_temperature = self.temperature if temperature is None else temperature
+        call_tokens = self.max_tokens if max_tokens is None else max_tokens
+
+        logger.info(
+            "LLM call start provider=%s model=%s temperature=%.2f max_tokens=%s",
+            self.model_provider,
+            self.model_name,
+            call_temperature,
+            call_tokens,
+        )
+
+        try:
+            llm = self.llm if temperature is None and max_tokens is None else self._build_llm(
+                temperature=temperature, max_tokens=max_tokens
+            )
+            response = llm(messages)
+            logger.info(
+                "LLM call success provider=%s model=%s content_length=%s",
+                self.model_provider,
+                self.model_name,
+                len(getattr(response, "content", "") or ""),
+            )
+            return response
+        except Exception as exc:
+            logger.error(
+                "LLM call failed provider=%s model=%s error=%s",
+                self.model_provider,
+                self.model_name,
+                exc,
+            )
+            raise
 
     def analyze_essay(
         self,
@@ -172,19 +223,17 @@ class EssayAnalyzer:
         prompt: Optional[str] = None,
         enable_grammar: bool = True,
         enable_style: bool = True,
-        enable_plagiarism: bool = False,
         enable_sentiment: bool = True,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Perform comprehensive essay analysis.
+        Perform comprehensive learning story analysis.
 
         Args:
-            essay_text: The essay content to analyze
-            prompt: Optional essay prompt/topic
+            essay_text: The learning story content to analyze
+            prompt: Optional learning story prompt/context
             enable_grammar: Whether to perform grammar analysis
             enable_style: Whether to perform style analysis
-            enable_plagiarism: Whether to perform basic plagiarism check
             enable_sentiment: Whether to perform sentiment analysis
             language: Reserved for backward compatibility. Essay language is auto-detected.
 
@@ -192,7 +241,7 @@ class EssayAnalyzer:
             Dictionary containing analysis results
         """
         if not essay_text or not essay_text.strip():
-            raise ValueError("Essay text cannot be empty.")
+            raise ValueError("Learning story text cannot be empty.")
 
         active_language = self._detect_language(essay_text)
 
@@ -212,12 +261,12 @@ class EssayAnalyzer:
         if enable_sentiment:
             results["sentiment"] = self._analyze_sentiment(essay_text)
 
-        if enable_plagiarism:
-            results["plagiarism"] = self._basic_plagiarism_check(essay_text)
-
         # AI-powered content analysis
         results["content_analysis"] = self._ai_content_analysis(
             essay_text, prompt, active_language
+        )
+        results["learning_story_signals"] = self._extract_learning_story_signals(
+            essay_text, active_language
         )
         results["language"] = active_language
 
@@ -434,30 +483,176 @@ class EssayAnalyzer:
             "overall_tone": tone,
         }
 
-    def _basic_plagiarism_check(self, text: str) -> Dict[str, Any]:
-        """Perform basic plagiarism detection."""
-        # This is a simplified implementation
-        # In a real system, you would integrate with plagiarism detection APIs
+    def _extract_learning_story_signals(
+        self, text: str, language: str = "en"
+    ) -> Dict[str, Any]:
+        """Extract HvA learning story signals (context, goals, plan, evidence)."""
+        lowered = text.lower()
 
-        # Check for common phrases that might indicate copying
-        suspicious_phrases = [
-            "according to wikipedia",
-            "as stated on the internet",
-            "copy and paste",
-            "source: google",
+        def _count_keywords(keywords: List[str]) -> int:
+            return sum(lowered.count(keyword) for keyword in keywords)
+
+        goal_patterns = [
+            r"\bals\s+[^.,\n]+?\s+wil\s+ik\s",
+            r"\bik\s+wil\s+leren\b",
+            r"\bas\s+a\s+student[^.,\n]+?i\s+want\s+to\s+learn\b",
+            r"\bi\s+want\s+to\s+learn\b",
+            r"\bals\s+student[^.,\n]+?wil\s+ik\b",
         ]
+        goal_statements = sum(len(re.findall(pattern, lowered)) for pattern in goal_patterns)
 
-        found_phrases = []
-        text_lower = text.lower()
+        success_criteria_mentions = _count_keywords(
+            [
+                "succescriter",
+                "acceptatiecriter",
+                "definition of done",
+                "klaar wanneer",
+                "done wanneer",
+                "behaald wanneer",
+                "acceptance criteria",
+                "success criteria",
+            ]
+        )
 
-        for phrase in suspicious_phrases:
-            if phrase in text_lower:
-                found_phrases.append(phrase)
+        context_mentions = _count_keywords(
+            [
+                "context",
+                "situatie",
+                "problem",
+                "probleem",
+                "opdracht",
+                "assignment",
+                "project",
+                "rol",
+                "role",
+                "stakeholder",
+                "klant",
+                "team",
+                "omgeving",
+                "resultaat",
+            ]
+        )
+        stakeholder_mentions = _count_keywords(["stakeholder", "stakeholders", "klant", "opdrachtgever"])
+        deliverable_mentions = _count_keywords(
+            [
+                "deliverable",
+                "oplevering",
+                "artefact",
+                "artefacten",
+                "artifact",
+                "prototype",
+                "demo",
+                "rapport",
+                "verslag",
+                "bewijs",
+                "evidence",
+            ]
+        )
+
+        actions_count = _count_keywords(
+            [
+                "plan",
+                "stap",
+                "stappen",
+                "aanpak",
+                "experiment",
+                "experimenten",
+                "test",
+                "testen",
+                "onderzoek",
+                "onderzoeken",
+                "interview",
+                "oefenen",
+                "implement",
+                "bouwen",
+                "prototyp",
+            ]
+        )
+
+        resource_mentions = _count_keywords(
+            [
+                "bron",
+                "bronnen",
+                "artikel",
+                "artikelen",
+                "paper",
+                "boek",
+                "literatuur",
+                "video",
+                "tutorial",
+                "cursus",
+                "mentor",
+                "coach",
+                "docent",
+                "lectoraat",
+                "kennisbank",
+                "knowledge base",
+                "documentatie",
+                "guideline",
+                "best practice",
+                "voorbeeld",
+            ]
+        )
+
+        evidence_mentions = _count_keywords(
+            [
+                "bewijs",
+                "onderbouwing",
+                "reflectie",
+                "feedback",
+                "referentie",
+                "referenties",
+                "citation",
+                "bronvermelding",
+                "bijlage",
+                "appendix",
+                "logboek",
+                "portfolio",
+                "assessment",
+                "rubric",
+            ]
+        )
+
+        reflection_mentions = _count_keywords(
+            [
+                "reflectie",
+                "terugblik",
+                "lessons learned",
+                "wat ging goed",
+                "wat kan beter",
+                "what went well",
+                "what could be better",
+            ]
+        )
+
+        planning_mentions = _count_keywords(
+            [
+                "planning",
+                "tijd",
+                "tijdpad",
+                "sprint",
+                "week",
+                "deadline",
+                "roadmap",
+                "volgende stap",
+            ]
+        )
+
+        link_mentions = len(re.findall(r"https?://", text, flags=re.IGNORECASE))
 
         return {
-            "suspicious_phrases": found_phrases,
-            "risk_level": "high" if found_phrases else "low",
-            "note": "This is a basic check. Professional plagiarism detection recommended.",
+            "goal_statements": goal_statements,
+            "success_criteria_mentions": success_criteria_mentions,
+            "context_mentions": context_mentions,
+            "stakeholder_mentions": stakeholder_mentions,
+            "deliverable_mentions": deliverable_mentions,
+            "actions_count": actions_count,
+            "resource_mentions": resource_mentions,
+            "evidence_mentions": evidence_mentions,
+            "reflection_mentions": reflection_mentions,
+            "planning_mentions": planning_mentions,
+            "link_mentions": link_mentions,
+            "has_minimum_sources": resource_mentions >= 2 or link_mentions >= 1,
         }
 
     def _ai_content_analysis(
@@ -487,19 +682,19 @@ Return the full analysis in {language_name}.""".format(language_name=language_na
                 HumanMessage(content=user_message),
             ]
 
-            response = self.llm(messages)
+            response = self.run_chat(messages)
 
             return {
                 "ai_analysis": response.content,
                 "analysis_provider": f"{self.model_provider}_{self.model_name}",
-                "workspace_attribution": "From Hasif's Workspace",
+                "workspace_attribution": "HvA Feedback Agent",
             }
 
         except Exception as e:
             return {
                 "ai_analysis": f"Error in AI analysis: {str(e)}",
                 "analysis_provider": "error",
-                "workspace_attribution": "From Hasif's Workspace",
+                "workspace_attribution": "HvA Feedback Agent",
             }
 
     def _check_introduction_patterns(self, first_paragraph: str, language: str = "en") -> bool:

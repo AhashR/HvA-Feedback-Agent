@@ -1,9 +1,7 @@
 """
 Test Essay Analyzer Module
-From Hasif's Workspace
 
 Unit tests for the essay analyzer functionality.
-Author: Hasif50
 """
 
 import pytest

@@ -92,8 +92,6 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# Azure
-.azure/
 
 # Model files
 models/
@@ -110,6 +108,3 @@ secrets/
 keys/
 credentials/
 
-# From Hasif's Workspace - Custom ignores
-workspace_temp/
-hasif_temp/

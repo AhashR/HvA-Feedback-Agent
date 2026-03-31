@@ -1,6 +1,6 @@
-# Deployment Guide - Automated Essay Grader
+# Deployment Guide - HvA Learning Story Feedback Agent
 
-This guide provides instructions for deploying the Automated Essay Grader in various environments.
+This guide provides instructions for deploying the HvA Learning Story Feedback Agent in various environments.
 
 ## Table of Contents
 
@@ -24,8 +24,8 @@ This guide provides instructions for deploying the Automated Essay Grader in var
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/Hasif50/Automated-Essay-Grader.git
-   cd Automated-Essay-Grader
+   git clone https://github.com/<your-org>/HvA-Feedback-Agent.git
+   cd HvA-Feedback-Agent
    ```
 
 2. **Create Virtual Environment**
@@ -74,9 +74,9 @@ This guide provides instructions for deploying the Automated Essay Grader in var
 2. **Application Setup**
    ```bash
    cd /opt
-   sudo git clone https://github.com/Hasif50/Automated-Essay-Grader.git
-   sudo chown -R $USER:$USER Automated-Essay-Grader
-   cd Automated-Essay-Grader
+   sudo git clone https://github.com/<your-org>/HvA-Feedback-Agent.git
+   sudo chown -R $USER:$USER HvA-Feedback-Agent
+   cd HvA-Feedback-Agent
    ```
 
 3. **Virtual Environment**
@@ -109,30 +109,31 @@ This guide provides instructions for deploying the Automated Essay Grader in var
    Type=simple
    User=www-data
    WorkingDirectory=/opt/Automated-Essay-Grader
-   Environment=PATH=/opt/Automated-Essay-Grader/venv/bin
+   # Deployment Guide - HvA Learning Story Feedback Agent
    ExecStart=/opt/Automated-Essay-Grader/venv/bin/python app.py
+   This guide provides instructions for deploying the HvA Learning Story Feedback Agent in various environments.
    Restart=always
 
-   [Install]
+       Description=HvA Learning Story Feedback Agent
    WantedBy=multi-user.target
    ```
 
 6. **Start Service**
-   ```bash
+       sudo nano /etc/systemd/system/learning-story-feedback.service
    sudo systemctl daemon-reload
    sudo systemctl enable essay-grader
    sudo systemctl start essay-grader
    ```
 
-### Nginx Configuration
+       Description=HvA Learning Story Feedback Agent
 
 1. **Create Nginx Config**
    ```bash
    sudo nano /etc/nginx/sites-available/essay-grader
    ```
-
-2. **Configuration Content**
-   ```nginx
+       WorkingDirectory=/opt/HvA-Feedback-Agent
+       Environment=PATH=/opt/HvA-Feedback-Agent/venv/bin
+       ExecStart=/opt/HvA-Feedback-Agent/venv/bin/python app.py
    server {
        listen 80;
        server_name your-domain.com;
@@ -141,14 +142,14 @@ This guide provides instructions for deploying the Automated Essay Grader in var
             proxy_pass http://localhost:5000;
            proxy_http_version 1.1;
            proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       sudo systemctl enable learning-story-feedback
+       sudo systemctl start learning-story-feedback
            proxy_set_header X-Forwarded-Proto $scheme;
        }
    }
    ```
 
-3. **Enable Site**
+       sudo nano /etc/nginx/sites-available/learning-story-feedback
    ```bash
    sudo ln -s /etc/nginx/sites-available/essay-grader /etc/nginx/sites-enabled/
    sudo nginx -t
@@ -169,9 +170,8 @@ This guide provides instructions for deploying the Automated Essay Grader in var
 
 3. **Environment Variables**
    Add these variables in your deployment platform:
-   - `OPENAI_API_KEY`
-   - `AZURE_API_KEY`
-   - `AZURE_ENDPOINT`
+   - `GEMINI_API_KEY`
+   - `COHERE_API_KEY` (optional)
    - `PORT` (provided by platform on most PaaS providers)
 
 ### Heroku Deployment
@@ -190,7 +190,6 @@ This guide provides instructions for deploying the Automated Essay Grader in var
 2. **Deploy Commands**
    ```bash
    heroku create your-app-name
-   heroku config:set OPENAI_API_KEY=your_key_here
    git push heroku main
    ```
 
@@ -245,10 +244,8 @@ services:
     build: .
     ports:
          - "5000:5000"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AZURE_API_KEY=${AZURE_API_KEY}
-      - AZURE_ENDPOINT=${AZURE_ENDPOINT}
+      environment:
+         - GEMINI_API_KEY=${GEMINI_API_KEY}
     volumes:
       - ./data/outputs:/app/data/outputs
       - ./logs:/app/logs
@@ -279,19 +276,11 @@ docker-compose up -d
 
 ```bash
 # AI Model Configuration
-OPENAI_API_KEY=your_openai_key
-OPENAI_MODEL=gpt-4
-OPENAI_TEMPERATURE=0.3
-OPENAI_MAX_TOKENS=2000
-
-# Azure Configuration (if using Azure)
-AZURE_API_KEY=your_azure_key
-AZURE_ENDPOINT=your_azure_endpoint
-AZURE_API_VERSION=2023-05-15
+GEMINI_API_KEY=your_gemini_key
 
 # Application Settings
-APP_TITLE="Automated Essay Grader"
-MAX_ESSAY_LENGTH=10000
+APP_TITLE="HvA Learning Story Feedback Agent"
+MAX_LEARNING_STORY_LENGTH=10000
 DEFAULT_RUBRIC=learning_story
 
 # Security
@@ -307,7 +296,6 @@ LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
 
 # Features
-ENABLE_PLAGIARISM_CHECK=true
 ENABLE_GRAMMAR_CHECK=true
 ENABLE_STYLE_ANALYSIS=true
 
@@ -467,6 +455,5 @@ For deployment support or issues:
 3. Consult the user guide
 4. Contact the development team
 
-**Built from Hasif's Workspace**  
-**Author**: Hasif50  
+**Maintained by**: HvA Feedback Agent Team  
 **Version**: 1.0.0

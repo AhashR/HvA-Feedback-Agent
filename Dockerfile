@@ -1,6 +1,4 @@
 # Dockerfile for Automated Essay Grader
-# From Hasif's Workspace
-# Author: Hasif50
 
 FROM python:3.10-slim
 
@@ -44,8 +42,8 @@ EXPOSE 5000
 HEALTHCHECK CMD curl --fail http://localhost:5000/health || exit 1
 
 # Set metadata
-LABEL maintainer="Hasif50"
-LABEL workspace="Hasif's Workspace"
+LABEL maintainer="HvA Feedback Agent Team"
+LABEL workspace="HvA Feedback Agent"
 LABEL description="AI-Powered Essay Grading System"
 LABEL version="1.0.0"
 

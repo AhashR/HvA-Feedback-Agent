@@ -1,6 +1,5 @@
 """
 Test Grading Engine Module
-From Hasif's Workspace
 
 Unit tests for rubric loading and rubric-specific grading behavior.
 """

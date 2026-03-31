@@ -1,5 +1,3 @@
-"""Flask application entry point for Automated Essay Grader."""
-
 import os
 import re
 import sys
@@ -37,13 +35,11 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-me-in-production")
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 MODEL_OPTIONS = {
-    "openai": ["gpt-4", "gpt-3.5-turbo"],
-    "azure_openai": ["gpt-4", "gpt-35-turbo"],
+    "gemini": ["gemini-1.5-pro", "gemini-1.5-flash"],
 }
 
 MODEL_PROVIDER_LABELS = {
-    "openai": "OpenAI",
-    "azure_openai": "Azure OpenAI",
+    "gemini": "Google Gemini",
 }
 
 LANGUAGE_LABELS = {
@@ -51,35 +47,57 @@ LANGUAGE_LABELS = {
     "nl": "Nederlands",
 }
 
-RUBRIC_TYPE = "learning_story"
-RUBRIC_LABEL = "Learning Story"
+TEMPLATES = {
+    "en": "index.html",
+    "nl": "index_nl.html",
+}
 
+MESSAGES: Dict[str, Dict[str, str]] = {
+    "en": {
+        "upload_or_paste_error": "Please upload a file or paste a learning story to analyze.",
+        "error_no_results": "No analysis results found. Run an analysis first.",
+        "analysis_error_prefix": "Error during analysis",
+    },
+    "nl": {
+        "upload_or_paste_error": "Upload een bestand of plak een learning story om te analyseren.",
+        "error_no_results": "Geen resultaten gevonden. Voer eerst een analyse uit.",
+        "analysis_error_prefix": "Fout tijdens de analyse",
+    },
+}
+
+RUBRIC_TYPE = "learning_story"
 # In-memory cache for report export actions.
 ANALYSIS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def _default_form_state() -> Dict[str, Any]:
     return {
-        "model_provider": "openai",
-        "model_name": "gpt-4",
-        "temperature": 0.3,
-        "max_tokens": 2000,
+        "model_provider": "gemini",
+        "model_name": "gemini-1.5-pro",
         "feedback_agent_language": "en",
-        "enable_grammar": True,
-        "enable_style": True,
-        "enable_plagiarism": False,
-        "enable_sentiment": True,
         "essay_text": "",
         "essay_prompt": "",
     }
 
 
-def _to_bool(value: Optional[str]) -> bool:
-    return str(value).lower() in {"1", "true", "on", "yes"}
+def _normalize_language(language: Optional[str]) -> str:
+    normalized = (language or "en").strip().lower()
+    aliases = {"english": "en", "eng": "en", "dutch": "nl", "nederlands": "nl"}
+    normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in LANGUAGE_LABELS else "en"
+
+
+def _resolve_language() -> str:
+    lang_arg = request.args.get("lang")
+    if lang_arg:
+        lang = _normalize_language(lang_arg)
+        session["ui_language"] = lang
+        return lang
+    return _normalize_language(session.get("ui_language", "en"))
 
 
 def _model_options_for(provider: str) -> list[str]:
-    return MODEL_OPTIONS.get(provider, MODEL_OPTIONS["openai"])
+    return MODEL_OPTIONS.get(provider, MODEL_OPTIONS["gemini"])
 
 
 def _render_feedback_markdown(text: str) -> Markup:
@@ -112,25 +130,24 @@ def _get_cached_analysis() -> Optional[Dict[str, Any]]:
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    active_language = _resolve_language()
+    template_name = TEMPLATES.get(active_language, TEMPLATES["en"])
+
     form_state = _default_form_state()
+    form_state["feedback_agent_language"] = active_language
     results = None
 
     if request.method == "POST":
-        form_state["model_provider"] = request.form.get("model_provider", "openai")
+        form_state["model_provider"] = request.form.get("model_provider", "gemini")
         form_state["model_name"] = request.form.get("model_name", "gpt-4")
         form_state["temperature"] = float(request.form.get("temperature", 0.3))
         form_state["max_tokens"] = int(request.form.get("max_tokens", 2000))
-        form_state["feedback_agent_language"] = request.form.get(
-            "feedback_agent_language", "en"
+        form_state["feedback_agent_language"] = _normalize_language(
+            request.form.get("feedback_agent_language", form_state["feedback_agent_language"])
         )
-        form_state["enable_grammar"] = _to_bool(request.form.get("enable_grammar"))
-        form_state["enable_style"] = _to_bool(request.form.get("enable_style"))
-        form_state["enable_plagiarism"] = _to_bool(
-            request.form.get("enable_plagiarism")
-        )
-        form_state["enable_sentiment"] = _to_bool(
-            request.form.get("enable_sentiment")
-        )
+        active_language = form_state["feedback_agent_language"]
+        template_name = TEMPLATES.get(active_language, TEMPLATES["en"])
+        session["ui_language"] = active_language
         form_state["essay_text"] = request.form.get("essay_text", "")
         form_state["essay_prompt"] = request.form.get("essay_prompt", "")
 
@@ -140,6 +157,7 @@ def index():
 
         uploaded_file = request.files.get("essay_file")
         content = ""
+        messages = MESSAGES.get(active_language, MESSAGES["en"])
 
         try:
             if uploaded_file and uploaded_file.filename:
@@ -147,12 +165,13 @@ def index():
                 if not is_valid:
                     flash(error_message, "error")
                     return render_template(
-                        "index.html",
+                        template_name,
                         form_state=form_state,
                         model_options=model_choices,
                         model_provider_labels=MODEL_PROVIDER_LABELS,
+                        model_options_map=MODEL_OPTIONS,
                         language_labels=LANGUAGE_LABELS,
-                        rubric_label=RUBRIC_LABEL,
+                        active_language=active_language,
                         results=results,
                     )
                 content = load_document(uploaded_file)
@@ -160,14 +179,15 @@ def index():
                 content = form_state["essay_text"]
 
             if not content or not content.strip():
-                flash("Please upload a file or paste essay content to analyze.", "error")
+                flash(messages["upload_or_paste_error"], "error")
                 return render_template(
-                    "index.html",
+                    template_name,
                     form_state=form_state,
                     model_options=model_choices,
                     model_provider_labels=MODEL_PROVIDER_LABELS,
+                    model_options_map=MODEL_OPTIONS,
                     language_labels=LANGUAGE_LABELS,
-                    rubric_label=RUBRIC_LABEL,
+                    active_language=active_language,
                     results=results,
                 )
 
@@ -176,23 +196,22 @@ def index():
                 model_name=form_state["model_name"],
                 temperature=form_state["temperature"],
                 max_tokens=form_state["max_tokens"],
+                language=form_state["feedback_agent_language"],
             )
 
             grading_engine = GradingEngine(
                 rubric_type=RUBRIC_TYPE,
                 analyzer=analyzer,
-                language="en",
+                language=form_state["feedback_agent_language"],
             )
 
-            feedback_generator = FeedbackGenerator(analyzer=analyzer, language="en")
+            feedback_generator = FeedbackGenerator(
+                analyzer=analyzer, language=form_state["feedback_agent_language"]
+            )
 
             analysis_results = analyzer.analyze_essay(
                 content,
                 prompt=form_state["essay_prompt"],
-                enable_grammar=form_state["enable_grammar"],
-                enable_style=form_state["enable_style"],
-                enable_plagiarism=form_state["enable_plagiarism"],
-                enable_sentiment=form_state["enable_sentiment"],
             )
 
             grade_results = grading_engine.grade_essay(
@@ -235,6 +254,15 @@ def index():
                     feedback.get("language", "en"), "English"
                 ),
                 "grammar_issues": grammar_issues,
+                "ai_content_analysis": analysis_results.get("content_analysis", {}).get(
+                    "ai_analysis", ""
+                ),
+                "ai_content_provider": analysis_results.get("content_analysis", {}).get(
+                    "analysis_provider", ""
+                ),
+                "ai_feedback": feedback.get("ai_comprehensive_feedback", ""),
+                "ai_feedback_provider": feedback.get("ai_provider", ""),
+                "rubric_source": grade_results.get("rubric_source", "unknown"),
             }
 
             _cache_analysis(
@@ -246,24 +274,28 @@ def index():
                 }
             )
         except Exception as exc:
-            flash(f"Error during analysis: {exc}", "error")
+            flash(f"{messages['analysis_error_prefix']}: {exc}", "error")
 
+    model_options = _model_options_for(form_state["model_provider"])
     return render_template(
-        "index.html",
+        template_name,
         form_state=form_state,
-        model_options=_model_options_for(form_state["model_provider"]),
+        model_options=model_options,
         model_provider_labels=MODEL_PROVIDER_LABELS,
+        model_options_map=MODEL_OPTIONS,
         language_labels=LANGUAGE_LABELS,
-        rubric_label=RUBRIC_LABEL,
+        active_language=active_language,
         results=results,
     )
 
 
 @app.route("/export/pdf")
 def export_pdf():
+    active_language = _normalize_language(session.get("ui_language", "en"))
+    messages = MESSAGES.get(active_language, MESSAGES["en"])
     cached = _get_cached_analysis()
     if not cached:
-        flash("No analysis results found. Run an analysis first.", "error")
+        flash(messages["error_no_results"], "error")
         return redirect(url_for("index"))
 
     report_path = generate_report(
@@ -279,9 +311,11 @@ def export_pdf():
 
 @app.route("/export/csv")
 def export_csv():
+    active_language = _normalize_language(session.get("ui_language", "en"))
+    messages = MESSAGES.get(active_language, MESSAGES["en"])
     cached = _get_cached_analysis()
     if not cached:
-        flash("No analysis results found. Run an analysis first.", "error")
+        flash(messages["error_no_results"], "error")
         return redirect(url_for("index"))
 
     csv_path = save_results(

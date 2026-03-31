@@ -1,11 +1,11 @@
-# API Reference - Automated Essay Grader
+# API Reference - HvA Learning Story Feedback Agent
 
-This document provides technical reference for the Automated Essay Grader components and modules.
+This document provides technical reference for the HvA Learning Story Feedback Agent components and modules.
 
 ## Table of Contents
 
 1. [Core Modules](#core-modules)
-2. [Essay Analyzer](#essay-analyzer)
+2. [Learning Story Analyzer](#learning-story-analyzer)
 3. [Grading Engine](#grading-engine)
 4. [Feedback Generator](#feedback-generator)
 5. [Utilities](#utilities)
@@ -29,25 +29,25 @@ config/
 └── prompts.py           # AI prompt templates
 ```
 
-## Essay Analyzer
+## Learning Story Analyzer
 
 ### Class: `EssayAnalyzer`
 
-Main class for essay analysis functionality.
+Main class for learning story analysis functionality.
 
 #### Constructor
 
 ```python
 EssayAnalyzer(
-    model_provider: str = "openai",
-    model_name: str = "gpt-4",
+    model_provider: str = "gemini",
+    model_name: str = "gemini-1.5-pro",
     temperature: float = 0.3,
     max_tokens: int = 2000
 )
 ```
 
 **Parameters:**
-- `model_provider`: AI model provider ("openai" or "azure_openai")
+- `model_provider`: AI model provider ("gemini" or "mock" for testing)
 - `model_name`: Specific model to use
 - `temperature`: Model temperature for response generation
 - `max_tokens`: Maximum tokens for model responses
@@ -62,19 +62,17 @@ analyze_essay(
     prompt: Optional[str] = None,
     enable_grammar: bool = True,
     enable_style: bool = True,
-    enable_plagiarism: bool = False,
     enable_sentiment: bool = True
 ) -> Dict[str, Any]
 ```
 
-Performs comprehensive essay analysis.
+Performs comprehensive learning story analysis.
 
 **Parameters:**
-- `essay_text`: The essay content to analyze
-- `prompt`: Optional essay prompt/topic
+- `essay_text`: The learning story content to analyze
+- `prompt`: Optional learning story prompt/topic
 - `enable_grammar`: Whether to perform grammar analysis
 - `enable_style`: Whether to perform style analysis
-- `enable_plagiarism`: Whether to perform basic plagiarism check
 - `enable_sentiment`: Whether to perform sentiment analysis
 
 **Returns:**
@@ -335,9 +333,8 @@ Main configuration class with application settings.
 
 **Key Properties:**
 - `APP_TITLE`: Application title
-- `OPENAI_API_KEY`: OpenAI API key
-- `AZURE_API_KEY`: Azure API key
-- `MAX_ESSAY_LENGTH`: Maximum essay length
+- `GEMINI_API_KEY`: Google Gemini API key
+- `MAX_LEARNING_STORY_LENGTH`: Maximum learning story length
 - `AVAILABLE_MODELS`: Available AI models
 - `AVAILABLE_RUBRICS`: Available grading rubrics
 - `GRADE_SCALE`: Grade scale definitions
@@ -431,7 +428,7 @@ FeedbackResult = {
     "error": True,
     "message": str,
     "error_type": str,
-    "workspace_attribution": "From Hasif's Workspace"
+    "workspace_attribution": "HvA Feedback Agent"
 }
 ```
 
@@ -484,7 +481,7 @@ if issues:
     print("Configuration issues:", issues)
 
 # Get model info
-model_info = Settings.get_model_config("openai", "gpt-4")
+model_info = Settings.get_model_config("gemini", "gemini-1.5-pro")
 print(model_info)
 ```
 
@@ -493,8 +490,8 @@ print(model_info)
 ## Version Information
 
 **Version**: 1.0.0  
-**Author**: Hasif50  
-**Workspace**: Hasif's Workspace  
+**Author**: HvA Feedback Agent Team  
+**Workspace**: HvA Feedback Agent  
 **Last Updated**: 2025
 
 For technical support or questions about the API, please refer to the user guide or contact the development team.
