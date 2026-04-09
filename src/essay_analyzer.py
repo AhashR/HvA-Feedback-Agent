@@ -236,12 +236,11 @@ class EssayAnalyzer:
             raise ValueError("Learning story text cannot be empty.")
 
         _ = enable_sentiment  # Backward-compatible flag not used in HvA flow.
-        _ = language  # Reserved for backward compatibility.
-
         detected_language = self._detect_language(essay_text)
+        active_language = self._normalize_language(language or detected_language)
         basic_stats = self._get_basic_statistics(essay_text)
         learning_signals = self._extract_learning_story_signals(
-            essay_text, detected_language
+            essay_text, active_language
         )
 
         results: Dict[str, Any] = {
@@ -250,14 +249,18 @@ class EssayAnalyzer:
             "structure": self._analyze_structure(essay_text, learning_signals),
             "vocabulary": self._analyze_vocabulary(essay_text),
             "learning_story_signals": learning_signals,
-            "language": detected_language,
+            "language": active_language,
         }
 
         if enable_grammar:
-            results["grammar"] = self._analyze_grammar(essay_text, learning_signals)
+            results["grammar"] = self._analyze_grammar(
+                essay_text, learning_signals, active_language
+            )
 
         if enable_style:
-            results["style"] = self._analyze_style(essay_text, learning_signals)
+            results["style"] = self._analyze_style(
+                essay_text, learning_signals, active_language
+            )
 
         retrieval_context = self._gather_retrieval_context(essay_text, prompt)
         results["retrieval_context"] = self._format_retrieval_blocks(retrieval_context)
@@ -300,7 +303,9 @@ class EssayAnalyzer:
         self, text: str, signals: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Analyze structure in HvA terms: context-goals-approach-evidence coverage."""
-        story_signals = signals or self._extract_learning_story_signals(text)
+        story_signals = signals or self._extract_learning_story_signals(
+            text, self._detect_language(text)
+        )
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         paragraph_lengths = [len(p.split()) for p in paragraphs]
 
@@ -351,43 +356,62 @@ class EssayAnalyzer:
         }
 
     def _analyze_grammar(
-        self, text: str, signals: Optional[Dict[str, Any]] = None
+        self,
+        text: str,
+        signals: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = None,
     ) -> Dict[str, Any]:
         """HvA-oriented clarity checks (not full grammar scoring)."""
-        story_signals = signals or self._extract_learning_story_signals(text)
+        active_language = self._normalize_language(language or self._detect_language(text))
+        story_signals = signals or self._extract_learning_story_signals(
+            text, active_language
+        )
         grammar_issues: List[Dict[str, Any]] = []
 
         sentences = nltk.sent_tokenize(text)
         for i, sentence in enumerate(sentences):
             words = len(sentence.split())
             if words > 35:
+                long_sentence_description = (
+                    f"Zin heeft {words} woorden. Splits lange zinnen in kleinere stappen."
+                    if active_language == "nl"
+                    else (
+                        f"Sentence has {words} words. Split long ideas into smaller steps."
+                    )
+                )
                 grammar_issues.append(
                     {
                         "type": "Long Sentence",
                         "sentence_number": i + 1,
-                        "description": (
-                            f"Sentence has {words} words. Split long ideas into smaller steps."
-                        ),
+                        "description": long_sentence_description,
                         "severity": "medium",
                     }
                 )
 
         if story_signals.get("goal_statements", 0) == 0:
+            missing_goal_description = (
+                "Neem minstens een expliciete leerdoelformulering op."
+                if active_language == "nl"
+                else "Include at least one explicit learning goal statement."
+            )
             grammar_issues.append(
                 {
                     "type": "Missing Goal Formulation",
-                    "description": (
-                        "Include at least one explicit learning goal statement."
-                    ),
+                    "description": missing_goal_description,
                     "severity": "high",
                 }
             )
 
         if story_signals.get("actions_count", 0) == 0:
+            missing_actions_description = (
+                "Beschrijf concrete stappen, experimenten of taken."
+                if active_language == "nl"
+                else "Describe concrete steps, experiments, or tasks."
+            )
             grammar_issues.append(
                 {
                     "type": "Missing Concrete Actions",
-                    "description": "Describe concrete steps, experiments, or tasks.",
+                    "description": missing_actions_description,
                     "severity": "high",
                 }
             )
@@ -398,10 +422,16 @@ class EssayAnalyzer:
         }
 
     def _analyze_style(
-        self, text: str, signals: Optional[Dict[str, Any]] = None
+        self,
+        text: str,
+        signals: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = None,
     ) -> Dict[str, Any]:
         """HvA-oriented style analysis focused on actionability and specificity."""
-        story_signals = signals or self._extract_learning_story_signals(text)
+        active_language = self._normalize_language(language or self._detect_language(text))
+        story_signals = signals or self._extract_learning_story_signals(
+            text, active_language
+        )
         sentences = nltk.sent_tokenize(text)
         sentence_lengths = [len(sentence.split()) for sentence in sentences]
 
@@ -410,23 +440,29 @@ class EssayAnalyzer:
 
         style_issues: List[Dict[str, Any]] = []
         if actions_count < 2:
+            low_action_description = (
+                "Voeg stapsgewijze acties toe om je leerroute concreet te maken."
+                if active_language == "nl"
+                else "Add step-by-step actions to make your learning approach concrete."
+            )
             style_issues.append(
                 {
                     "type": "Low Action Specificity",
-                    "description": (
-                        "Add step-by-step actions to make your learning approach concrete."
-                    ),
+                    "description": low_action_description,
                     "severity": "medium",
                 }
             )
 
         if resources < 1 and story_signals.get("link_mentions", 0) < 1:
+            missing_source_description = (
+                "Noem leerbronnen (artikelen, documentatie, video's, mentors) of voeg links toe."
+                if active_language == "nl"
+                else "Name learning resources (articles, docs, videos, mentors) or add links."
+            )
             style_issues.append(
                 {
                     "type": "Missing Source Strategy",
-                    "description": (
-                        "Name learning resources (articles, docs, videos, mentors) or add links."
-                    ),
+                    "description": missing_source_description,
                     "severity": "medium",
                 }
             )
@@ -447,163 +483,310 @@ class EssayAnalyzer:
         self, text: str, language: str = "en"
     ) -> Dict[str, Any]:
         """Extract HvA learning story signals (context, goals, plan, evidence)."""
-        _ = language
+        active_language = self._normalize_language(language)
         lowered = text.lower()
 
         def _count_keywords(keywords: List[str]) -> int:
-            return sum(lowered.count(keyword) for keyword in keywords)
+            total = 0
+            for keyword in keywords:
+                escaped = re.escape(keyword.lower().strip())
+                if not escaped:
+                    continue
 
-        goal_patterns = [
-            r"\bals\s+[^.,\n]+?\s+wil\s+ik\s",
-            r"\bik\s+wil\s+leren\b",
-            r"\bas\s+a\s+student[^.,\n]+?i\s+want\s+to\s+learn\b",
-            r"\bi\s+want\s+to\s+learn\b",
-            r"\bals\s+student[^.,\n]+?wil\s+ik\b",
-        ]
+                # Prefix matching for single tokens keeps support for stems like "prototyp".
+                pattern = (
+                    rf"\b{escaped}\b"
+                    if " " in keyword
+                    else rf"\b{escaped}\w*\b"
+                )
+                total += len(re.findall(pattern, lowered))
+            return total
+
+        goal_patterns_by_language = {
+            "nl": [
+                r"\bals\s+[^.,\n]+?\s+wil\s+ik\s",
+                r"\bik\s+wil\s+leren\b",
+                r"\bik\s+wil\s+me\s+verbeteren\b",
+                r"\bleerdoel\b",
+            ],
+            "en": [
+                r"\bas\s+a\s+student[^.,\n]+?i\s+want\s+to\s+learn\b",
+                r"\bi\s+want\s+to\s+learn\b",
+                r"\bmy\s+learning\s+goal\b",
+                r"\blearning\s+goal\b",
+            ],
+        }
+
+        keyword_sets_by_language = {
+            "nl": {
+                "success_criteria": [
+                    "succescriter",
+                    "acceptatiecriter",
+                    "definition of done",
+                    "klaar wanneer",
+                    "done wanneer",
+                    "behaald wanneer",
+                ],
+                "context": [
+                    "context",
+                    "situatie",
+                    "achtergrond",
+                    "probleem",
+                    "vraagstuk",
+                    "opdracht",
+                    "project",
+                    "rol",
+                    "stakeholder",
+                    "klant",
+                    "team",
+                    "omgeving",
+                    "resultaat",
+                    "casus",
+                ],
+                "stakeholder": [
+                    "stakeholder",
+                    "stakeholders",
+                    "klant",
+                    "opdrachtgever",
+                    "gebruiker",
+                    "gebruikers",
+                ],
+                "deliverable": [
+                    "oplevering",
+                    "artefact",
+                    "artefacten",
+                    "prototype",
+                    "demo",
+                    "rapport",
+                    "verslag",
+                    "bewijs",
+                    "resultaat",
+                    "product",
+                ],
+                "actions": [
+                    "plan",
+                    "stap",
+                    "stappen",
+                    "aanpak",
+                    "experiment",
+                    "experimenten",
+                    "test",
+                    "testen",
+                    "onderzoek",
+                    "onderzoeken",
+                    "interview",
+                    "oefenen",
+                    "implement",
+                    "bouwen",
+                    "prototyp",
+                    "uitwerken",
+                    "uitproberen",
+                ],
+                "resources": [
+                    "bron",
+                    "bronnen",
+                    "artikel",
+                    "artikelen",
+                    "paper",
+                    "boek",
+                    "literatuur",
+                    "video",
+                    "tutorial",
+                    "cursus",
+                    "mentor",
+                    "coach",
+                    "docent",
+                    "lectoraat",
+                    "kennisbank",
+                    "documentatie",
+                    "richtlijn",
+                    "best practice",
+                    "voorbeeld",
+                ],
+                "evidence": [
+                    "bewijs",
+                    "onderbouwing",
+                    "reflectie",
+                    "feedback",
+                    "referentie",
+                    "referenties",
+                    "bronvermelding",
+                    "bijlage",
+                    "appendix",
+                    "logboek",
+                    "portfolio",
+                    "assessment",
+                    "rubric",
+                ],
+                "reflection": [
+                    "reflectie",
+                    "terugblik",
+                    "wat ging goed",
+                    "wat kan beter",
+                    "geleerd",
+                    "leerpunt",
+                    "leerpunten",
+                ],
+                "planning": [
+                    "planning",
+                    "tijd",
+                    "tijdpad",
+                    "sprint",
+                    "week",
+                    "deadline",
+                    "roadmap",
+                    "volgende stap",
+                ],
+            },
+            "en": {
+                "success_criteria": [
+                    "acceptance criteria",
+                    "success criteria",
+                    "definition of done",
+                    "done when",
+                    "completed when",
+                ],
+                "context": [
+                    "context",
+                    "background",
+                    "situation",
+                    "problem",
+                    "challenge",
+                    "assignment",
+                    "project",
+                    "role",
+                    "stakeholder",
+                    "client",
+                    "team",
+                    "environment",
+                    "outcome",
+                    "case",
+                ],
+                "stakeholder": [
+                    "stakeholder",
+                    "stakeholders",
+                    "client",
+                    "customer",
+                    "users",
+                    "user",
+                ],
+                "deliverable": [
+                    "deliverable",
+                    "artifact",
+                    "artefact",
+                    "prototype",
+                    "demo",
+                    "report",
+                    "evidence",
+                    "outcome",
+                    "result",
+                    "product",
+                ],
+                "actions": [
+                    "plan",
+                    "step",
+                    "steps",
+                    "approach",
+                    "experiment",
+                    "experiments",
+                    "test",
+                    "testing",
+                    "research",
+                    "interview",
+                    "practice",
+                    "implement",
+                    "build",
+                    "prototype",
+                    "iterate",
+                    "validate",
+                ],
+                "resources": [
+                    "source",
+                    "sources",
+                    "article",
+                    "articles",
+                    "paper",
+                    "book",
+                    "literature",
+                    "video",
+                    "tutorial",
+                    "course",
+                    "mentor",
+                    "coach",
+                    "teacher",
+                    "knowledge base",
+                    "documentation",
+                    "guideline",
+                    "best practice",
+                    "example",
+                ],
+                "evidence": [
+                    "evidence",
+                    "substantiation",
+                    "reflection",
+                    "feedback",
+                    "reference",
+                    "references",
+                    "citation",
+                    "appendix",
+                    "logbook",
+                    "portfolio",
+                    "assessment",
+                    "rubric",
+                ],
+                "reflection": [
+                    "reflection",
+                    "lessons learned",
+                    "what went well",
+                    "what could be better",
+                    "learned",
+                    "learning point",
+                    "learning points",
+                ],
+                "planning": [
+                    "planning",
+                    "timeline",
+                    "timeframe",
+                    "sprint",
+                    "week",
+                    "deadline",
+                    "roadmap",
+                    "next step",
+                    "next steps",
+                ],
+            },
+        }
+
+        active_goal_patterns = goal_patterns_by_language.get(
+            active_language, goal_patterns_by_language["en"]
+        )
+        active_keyword_sets = keyword_sets_by_language.get(
+            active_language, keyword_sets_by_language["en"]
+        )
+
         goal_statements = sum(
-            len(re.findall(pattern, lowered)) for pattern in goal_patterns
+            len(re.findall(pattern, lowered)) for pattern in active_goal_patterns
         )
 
         success_criteria_mentions = _count_keywords(
-            [
-                "succescriter",
-                "acceptatiecriter",
-                "definition of done",
-                "klaar wanneer",
-                "done wanneer",
-                "behaald wanneer",
-                "acceptance criteria",
-                "success criteria",
-            ]
+            active_keyword_sets["success_criteria"]
         )
 
-        context_mentions = _count_keywords(
-            [
-                "context",
-                "situatie",
-                "problem",
-                "probleem",
-                "opdracht",
-                "assignment",
-                "project",
-                "rol",
-                "role",
-                "stakeholder",
-                "klant",
-                "team",
-                "omgeving",
-                "resultaat",
-            ]
-        )
+        context_mentions = _count_keywords(active_keyword_sets["context"])
 
-        stakeholder_mentions = _count_keywords(
-            ["stakeholder", "stakeholders", "klant", "opdrachtgever"]
-        )
+        stakeholder_mentions = _count_keywords(active_keyword_sets["stakeholder"])
 
-        deliverable_mentions = _count_keywords(
-            [
-                "deliverable",
-                "oplevering",
-                "artefact",
-                "artefacten",
-                "artifact",
-                "prototype",
-                "demo",
-                "rapport",
-                "verslag",
-                "bewijs",
-                "evidence",
-            ]
-        )
+        deliverable_mentions = _count_keywords(active_keyword_sets["deliverable"])
 
-        actions_count = _count_keywords(
-            [
-                "plan",
-                "stap",
-                "stappen",
-                "aanpak",
-                "experiment",
-                "experimenten",
-                "test",
-                "testen",
-                "onderzoek",
-                "onderzoeken",
-                "interview",
-                "oefenen",
-                "implement",
-                "bouwen",
-                "prototyp",
-            ]
-        )
+        actions_count = _count_keywords(active_keyword_sets["actions"])
 
-        resource_mentions = _count_keywords(
-            [
-                "bron",
-                "bronnen",
-                "artikel",
-                "artikelen",
-                "paper",
-                "boek",
-                "literatuur",
-                "video",
-                "tutorial",
-                "cursus",
-                "mentor",
-                "coach",
-                "docent",
-                "lectoraat",
-                "kennisbank",
-                "knowledge base",
-                "documentatie",
-                "guideline",
-                "best practice",
-                "voorbeeld",
-            ]
-        )
+        resource_mentions = _count_keywords(active_keyword_sets["resources"])
 
-        evidence_mentions = _count_keywords(
-            [
-                "bewijs",
-                "onderbouwing",
-                "reflectie",
-                "feedback",
-                "referentie",
-                "referenties",
-                "citation",
-                "bronvermelding",
-                "bijlage",
-                "appendix",
-                "logboek",
-                "portfolio",
-                "assessment",
-                "rubric",
-            ]
-        )
+        evidence_mentions = _count_keywords(active_keyword_sets["evidence"])
 
-        reflection_mentions = _count_keywords(
-            [
-                "reflectie",
-                "terugblik",
-                "lessons learned",
-                "wat ging goed",
-                "wat kan beter",
-                "what went well",
-                "what could be better",
-            ]
-        )
+        reflection_mentions = _count_keywords(active_keyword_sets["reflection"])
 
-        planning_mentions = _count_keywords(
-            [
-                "planning",
-                "tijd",
-                "tijdpad",
-                "sprint",
-                "week",
-                "deadline",
-                "roadmap",
-                "volgende stap",
-            ]
-        )
+        planning_mentions = _count_keywords(active_keyword_sets["planning"])
 
         link_mentions = len(re.findall(r"https?://", text, flags=re.IGNORECASE))
 

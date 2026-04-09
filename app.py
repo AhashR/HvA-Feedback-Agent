@@ -1,7 +1,9 @@
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+from uuid import uuid4
 
 import markdown
 from dotenv import load_dotenv
@@ -62,6 +64,8 @@ VECTOR_DATA_PATH = Path(
 )
 
 LEARNING_STORY_RETRIEVER = LearningStoryRetriever(data_path=VECTOR_DATA_PATH)
+RECENT_ANALYSIS_CACHE: Dict[str, Dict[str, Any]] = {}
+PROCESS_BOOT_ID = uuid4().hex
 
 
 def _default_form_state() -> Dict[str, Any]:
@@ -93,6 +97,61 @@ def _model_options_for(provider: str) -> list[str]:
     return MODEL_OPTIONS.get(provider, MODEL_OPTIONS["gemini"])
 
 
+def _get_recent_analyses() -> list[Dict[str, Any]]:
+    recent_analyses = session.get("recent_analyses", [])
+    if not isinstance(recent_analyses, list):
+        return []
+    return recent_analyses[:10]
+
+
+def _add_recent_analysis(entry: Dict[str, Any]) -> None:
+    recent_analyses = _get_recent_analyses()
+    recent_analyses.insert(0, entry)
+    session["recent_analyses"] = recent_analyses[:10]
+    session.modified = True
+
+
+def _cache_analysis_result(entry_id: str, payload: Dict[str, Any]) -> None:
+    RECENT_ANALYSIS_CACHE[entry_id] = payload
+
+
+def _load_cached_analysis(entry_id: str) -> Optional[Dict[str, Any]]:
+    if not entry_id:
+        return None
+
+    # Only allow opening analyses that belong to the current session history.
+    recent_ids = {item.get("id") for item in _get_recent_analyses()}
+    if entry_id not in recent_ids:
+        return None
+
+    return RECENT_ANALYSIS_CACHE.get(entry_id)
+
+
+def _sync_session_with_process() -> None:
+    session_boot_id = session.get("process_boot_id")
+    if session_boot_id == PROCESS_BOOT_ID:
+        return
+
+    session["process_boot_id"] = PROCESS_BOOT_ID
+    session.pop("recent_analyses", None)
+    session.modified = True
+
+
+def _derive_subject(content: str, uploaded_filename: str = "") -> str:
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        # Strip lightweight markdown heading/bullet prefixes for cleaner titles.
+        cleaned = line.lstrip("#*- ").strip()
+        if cleaned:
+            return cleaned[:90]
+
+    if uploaded_filename:
+        return Path(uploaded_filename).stem[:90]
+    return "Untitled learning story"
+
+
 def _render_feedback_markdown(text: str) -> Markup:
     if not text:
         return Markup("")
@@ -113,12 +172,25 @@ def render_feedback(text: str) -> Markup:
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    _sync_session_with_process()
+
     active_language = _resolve_language()
     template_name = TEMPLATES.get(active_language, TEMPLATES["en"])
 
     form_state = _default_form_state()
     form_state["feedback_agent_language"] = active_language
     results = None
+    recent_analyses = _get_recent_analyses()
+
+    requested_analysis_id = request.args.get("analysis_id", "").strip()
+    if request.method == "GET" and requested_analysis_id:
+        cached = _load_cached_analysis(requested_analysis_id)
+        if cached:
+            results = cached.get("results")
+            cached_form_state = cached.get("form_state")
+            if isinstance(cached_form_state, dict):
+                form_state.update(cached_form_state)
+                form_state["feedback_agent_language"] = active_language
 
     if request.method == "POST":
         form_state["model_provider"] = request.form.get("model_provider", "gemini")
@@ -140,6 +212,7 @@ def index():
             form_state["model_name"] = model_choices[0]
 
         uploaded_file = request.files.get("essay_file")
+        uploaded_filename = uploaded_file.filename if uploaded_file else ""
         content = ""
         messages = MESSAGES.get(active_language, MESSAGES["en"])
 
@@ -159,6 +232,7 @@ def index():
                         language_labels=LANGUAGE_LABELS,
                         active_language=active_language,
                         results=results,
+                        recent_analyses=recent_analyses,
                     )
                 content = load_document(uploaded_file)
             else:
@@ -175,6 +249,7 @@ def index():
                     language_labels=LANGUAGE_LABELS,
                     active_language=active_language,
                     results=results,
+                    recent_analyses=recent_analyses,
                 )
 
             analyzer = EssayAnalyzer(
@@ -243,6 +318,33 @@ def index():
                 "ai_feedback": feedback.get("ai_comprehensive_feedback", ""),
                 "rubric_source": grade_results.get("rubric_source", "unknown"),
             }
+
+            analysis_id = uuid4().hex[:12]
+            _cache_analysis_result(
+                analysis_id,
+                {
+                    "results": results,
+                    "form_state": {
+                        "model_provider": form_state["model_provider"],
+                        "model_name": form_state["model_name"],
+                        "temperature": form_state["temperature"],
+                        "max_tokens": form_state["max_tokens"],
+                        "essay_text": form_state["essay_text"],
+                    },
+                },
+            )
+
+            _add_recent_analysis(
+                {
+                    "id": analysis_id,
+                    "subject": _derive_subject(content, uploaded_filename),
+                    "prompted_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "overall_score": f"{(results['overall_score'] / 10):.1f}/10",
+                    "word_count": results["quick_stats"]["word_count"],
+                    "letter_grade": results["letter_grade"],
+                }
+            )
+            recent_analyses = _get_recent_analyses()
         except Exception as exc:
             flash(f"{messages['analysis_error_prefix']}: {exc}", "error")
 
@@ -256,6 +358,7 @@ def index():
         language_labels=LANGUAGE_LABELS,
         active_language=active_language,
         results=results,
+        recent_analyses=recent_analyses,
     )
 
 
